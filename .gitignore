@@ -1,0 +1,70 @@
+# --- Secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# --- Python (ingest sidecar) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.python-version
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Node / Next.js (web frontend) ---
+node_modules/
+.next/
+out/
+dist/
+build/
+.pnpm-store/
+.yarn/
+.npm/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+next-env.d.ts
+
+# --- Third-party copyrighted source PDFs ---
+ingest/data/*.pdf
+!ingest/data/.gitkeep
+
+# --- Qdrant local volume (if bind-mounted) ---
+qdrant_storage/
+infra/qdrant_data/
+
+# --- n8n local artifacts (workflow exports are tracked; runtime state is not) ---
+n8n/.cache/
+n8n/runtime/
+
+# --- IDE / OS ---
+.vscode/
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Misc ---
+*.tmp
+*.bak
+.cache/
