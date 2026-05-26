@@ -65,7 +65,7 @@ Tasks are labelled `[T#]` with rough estimates. Dependencies are explicit so wor
 | T7 | Create n8n validate workflow skeleton (webhook → response) | 30m | — | ✅ |
 | T7b | Add `Extract from File` + JS `Code` parser node (replaces sidecar `/parse-manuscript`) | 1h | T7 | ✅ |
 | T8 | Wire sidecar HTTP node (`/journals/{id}`) + Merge into workflow | 45m | T5, T7 | ✅ |
-| T9 | Configure Qdrant search node with `journal_id` filter | 45m | T3, T7 |
+| T9 | Configure Qdrant search node with `journal_id` filter | 45m | T3, T7 | ✅ |
 | T10 | Add AI Agent node with tool definitions + system prompt | 2h | T8, T9 |
 | T11 | Wire Crossref + DOAJ HTTP nodes as agent tools | 1h | T10 |
 | T12 | Define `ValidationReport` JSON shape; format agent output | 1h | T10 |
