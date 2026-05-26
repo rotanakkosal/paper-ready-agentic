@@ -69,7 +69,7 @@ Tasks are labelled `[T#]` with rough estimates. Dependencies are explicit so wor
 | T10 | Add AI Agent node with tool definitions + system prompt | 2h | T8, T9 | ✅ |
 | T11 | Wire Crossref + DOAJ HTTP nodes as agent tools | 1h | T10 | ✅ |
 | T12 | Define `ValidationReport` JSON shape; format agent output | 1h | T10 | ✅ |
-| T13 | Scaffold Next.js app (App Router, Tailwind, shadcn optional) | 45m | — |
+| T13 | Scaffold Next.js app (App Router, Tailwind, shadcn optional) | 45m | — | ✅ |
 | T14 | Build upload page (journal dropdown + file input + submit) | 1.5h | T13 |
 | T15 | Build Next.js `/api/validate` proxy route (handles secret) | 30m | T7, T13 |
 | T16 | Render `ValidationReport` (checklist + missing items + citations) | 2h | T12, T14 |
