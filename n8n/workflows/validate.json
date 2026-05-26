@@ -1,0 +1,110 @@
+{
+  "name": "PaperReady — Validate",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "validate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-validate-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "paperready-validate"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "pdf",
+        "options": {}
+      },
+      "id": "extract-pdf",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Manuscript parser — runs inside the n8n \"Code\" node of the validate workflow.\n//\n// Input:  $input.first().json from the upstream \"Extract from File\" node\n//           - .text       full extracted PDF text\n//           - .numpages   page count\n//         $('Webhook').first().json.body.journal_id\n//\n// Output: a single item whose json is { journal_id, manuscript: ParsedManuscript }\n//         The ParsedManuscript shape matches docs/design/n8n-validate-workflow.md.\n//\n// Parsing is intentionally heuristic — the agent reasons over these fields\n// with retrieved guideline context, so the parser only needs to surface\n// structure, not be authoritative.\n\nconst inputJson = $input.first().json;\nconst text = (inputJson.text || '').toString();\nconst pageCount = inputJson.numpages || 0;\nconst journalId = $('Webhook').first().json.body?.journal_id || null;\n\n// --- Title: first long-ish line in the first ~1500 chars (above the abstract) ---\nconst firstChunk = text.slice(0, 1500);\nconst firstLines = firstChunk.split('\\n').map(l => l.trim()).filter(Boolean);\nconst title = firstLines.find(l => l.length > 20 && !/^abstract\\b/i.test(l)) || null;\n\n// --- ORCIDs ---\nconst orcidRe = /\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]/g;\nconst orcids = text.match(orcidRe) || [];\n\n// --- Abstract: text between \"Abstract\" and the next major heading ---\nconst absMatch = text.match(/Abstract[\\s\\-:.]+([\\s\\S]{50,2500}?)(?=Keywords|Introduction|1\\.\\s|I\\.\\s|\\n\\n\\n)/i);\nconst abstract = absMatch ? absMatch[1].trim() : null;\n\n// --- Sections: capitalised heading-like lines ---\nconst sectionRe = /^(?:\\d+\\.?\\s+)?([A-Z][A-Za-z ]{3,40})$/gm;\nconst sectionsSet = new Set();\nlet mSec;\nwhile ((mSec = sectionRe.exec(text)) !== null) sectionsSet.add(mSec[1].trim());\nconst sections_detected = Array.from(sectionsSet);\n\n// --- Declarations: simple substring probes ---\nconst lower = text.toLowerCase();\nconst declarations = {\n  conflict_of_interest: /conflict[s]? of interest|competing interest/.test(lower) ? 'found' : 'missing',\n  funding: /\\bfunding\\b|funded by|\\bgrant\\b/.test(lower) ? 'found' : 'missing',\n  data_availability: /data availability|data sharing/.test(lower) ? 'found' : 'missing',\n  ethics: /ethics statement|ethical (review|approval)|irb approval/.test(lower) ? 'found' : 'missing'\n};\n\n// --- References + DOIs ---\nconst doiRe = /10\\.\\d{4,9}\\/[-._;()\\/:A-Z0-9]+/gi;\nconst refsIdx = text.search(/\\bReferences\\b/i);\nlet refsBlock = refsIdx >= 0 ? text.slice(refsIdx).replace(/^References[\\s\\S]{0,10}/i, '') : '';\nconst rawRefs = refsBlock\n  .split(/\\n\\s*(?:\\[\\d+\\]|\\d+\\.)\\s+/)\n  .map(s => s.trim())\n  .filter(s => s.length > 20)\n  .slice(0, 100);\nconst references = rawRefs.map(raw => {\n  const dm = raw.match(doiRe);\n  return { raw: raw.slice(0, 300), doi: dm ? dm[0] : null };\n});\nconst allDois = text.match(doiRe) || [];\n\nreturn [{\n  json: {\n    journal_id: journalId,\n    manuscript: {\n      title,\n      orcids_found: orcids,\n      abstract,\n      sections_detected,\n      declarations,\n      references,\n      stats: {\n        page_count: pageCount,\n        reference_count: references.length,\n        doi_count: allDois.length,\n        orcid_count: orcids.length\n      }\n    }\n  }\n}];\n"
+      },
+      "id": "parse-manuscript",
+      "name": "Parse Manuscript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Parse Manuscript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Manuscript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

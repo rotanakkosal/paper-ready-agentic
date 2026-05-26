@@ -58,6 +58,7 @@ n8n/runtime/
 .vscode/
 !.vscode/settings.json.example
 .idea/
+.claude/
 *.swp
 *.swo
 .DS_Store

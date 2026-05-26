@@ -1,0 +1,15 @@
+[project]
+name = "paperready-ingest"
+version = "0.1.0"
+description = "PaperReady ingest sidecar — parses PDFs, embeds, and upserts to Qdrant"
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai>=0.3.0",
+    "qdrant-client>=1.11.0",
+    "pypdf>=4.0.0",
+    "langchain-text-splitters>=0.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv]
+package = false
