@@ -5,6 +5,7 @@
 *.pem
 *.key
 secrets/
+.mcp.json
 
 # --- Python (ingest sidecar) ---
 __pycache__/
