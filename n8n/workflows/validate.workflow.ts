@@ -1,4 +1,4 @@
-import { workflow, trigger, node, merge, embeddings, languageModel, expr } from '@n8n/workflow-sdk';
+import { workflow, trigger, node, merge, embeddings, languageModel, tool, expr } from '@n8n/workflow-sdk';
 
 const PARSE_MANUSCRIPT_JS = `// Manuscript parser — runs inside the n8n "Code" node of the validate workflow.
 //
@@ -84,28 +84,18 @@ return [{
 }];
 `;
 
-const BUNDLE_CONTEXT_JS = `// Bundle Context — runs after the Qdrant retrieval, before the agent.
+const BUNDLE_CONTEXT_JS = `// Bundle Context — runs after the Merge, before the Validator Agent.
 //
-// Input:  $input.all() = up to 5 chunk items from "Search Guideline Chunks"
-//         (each item.json has { pageContent | document.pageContent, metadata, score })
-//         $('Merge').first().json = manuscript + journal metadata combined
+// Input:  $input.first().json = output of "Merge" (combineByPosition)
+//           - manuscript: ParsedManuscript from Parse Manuscript
+//           - journal_id, name, required_reference_style, issn,
+//             reputation_flag, url from Get Journal Metadata
 //
-// Output: a single item bundling everything the agent needs:
-//           { manuscript, journal, guideline_chunks: [{excerpt, page, chunk_index_on_page, score}] }
+// Output: a single item bundling { manuscript, journal } for the agent.
+//         The agent retrieves guideline passages on-demand via the
+//         qdrant_search tool — Bundle Context no longer pre-fetches them.
 
-const chunks = $input.all().map(item => {
-  const j = item.json || {};
-  const doc = j.document || {};
-  const md = j.metadata || doc.metadata || {};
-  return {
-    excerpt: j.pageContent || doc.pageContent || j.text || '',
-    page: md.page ?? null,
-    chunk_index_on_page: md.chunk_index_on_page ?? null,
-    score: j.score ?? null
-  };
-});
-
-const m = $('Merge').first().json;
+const m = $input.first().json || {};
 const manuscript = m.manuscript || null;
 const journal = {
   journal_id: m.journal_id ?? null,
@@ -116,38 +106,53 @@ const journal = {
   url: m.url ?? null
 };
 
-return [{ json: { manuscript, journal, guideline_chunks: chunks } }];
+return [{ json: { manuscript, journal } }];
 `;
 
 const VALIDATOR_SYSTEM_MESSAGE = `You are PaperReady, a pre-submission validator for academic manuscripts.
 
-You receive three inputs in the user message:
+You receive in the user message:
   - manuscript: structured fields parsed from the user's PDF (title, authors/ORCIDs,
     abstract, sections_detected, declarations, references[], stats)
   - journal: target journal metadata (journal_id, name, required_reference_style,
     issn, reputation_flag, url)
-  - guideline_chunks: top-5 relevant passages already retrieved from the journal's
-    official author guideline, each with {excerpt, page, chunk_index_on_page, score}
+
+You have FOUR tools. Use them sparingly — token/rate budget is tight:
+  - qdrant_search(query)        — semantic search over the target journal's
+                                  official author guideline. Returns top-5
+                                  passages with page + chunk_index_on_page.
+                                  Use AT MOST 3 calls total, one per topic
+                                  (reference style, title page, declarations).
+  - get_reference_rules(style_name)
+                                — fetch the journal's expected reference style
+                                  rules. Call ONCE with journal.required_reference_style.
+  - crossref_verify_doi(doi)    — verify a DOI resolves on Crossref. Call on
+                                  AT MOST 5 sampled DOIs from manuscript.references[].
+  - doaj_lookup(issn)           — look up the journal in DOAJ by ISSN. Call ONCE
+                                  with journal.issn (skip if issn is null).
 
 Produce a ValidationReport JSON with five categories:
-  1. reference_style  - does manuscript.references appear to follow
-                        journal.required_reference_style? Inspect the first 5
-                        references.raw values for numbering, ordering, punctuation.
-  2. doi_verification - list DOIs found in manuscript.references[] (status "pending"
-                        - Crossref check is not yet wired in this draft).
-  3. title_page       - what does the guideline (guideline_chunks) require for title,
-                        authors, affiliations, corresponding author, ORCIDs? What is
-                        present in manuscript.title / manuscript.orcids_found /
-                        manuscript.sections_detected?
-  4. declarations     - does the guideline require COI / funding / data-availability /
-                        ethics statements? Are they present in manuscript.declarations?
-  5. legitimacy       - base on journal.reputation_flag if set; otherwise status
-                        "pending" (DOAJ lookup is not yet wired).
+  1. reference_style  - using get_reference_rules + manuscript.references[].raw,
+                        does the manuscript follow journal.required_reference_style?
+                        Inspect the first 5 references for numbering, ordering,
+                        punctuation.
+  2. doi_verification - call crossref_verify_doi on up to 5 sampled DOIs from
+                        manuscript.references[]. Mark each pass/fail.
+  3. title_page       - qdrant_search for title-page requirements (title, authors,
+                        affiliations, corresponding author, ORCIDs). Compare
+                        against manuscript.title / manuscript.orcids_found /
+                        manuscript.sections_detected.
+  4. declarations     - qdrant_search for declaration requirements (COI, funding,
+                        data availability, ethics). Compare against
+                        manuscript.declarations.
+  5. legitimacy       - combine journal.reputation_flag with the doaj_lookup
+                        result. Empty DOAJ results don't mean illegitimate —
+                        many reputable journals aren't OA.
 
 Rules:
-  - Cite guideline_chunks by {page, chunk_index_on_page} in evidence_from_guideline.
-  - Never fabricate citations. If no chunk addresses a topic, write
-    "guideline silent on this" and use status "warn" or "pending".
+  - Cite qdrant_search hits by {page, chunk_index_on_page} in evidence_from_guideline.
+  - Never fabricate citations. If qdrant_search returns nothing on a topic, write
+    "guideline silent on this" and use status "warn".
   - Output ONLY the ValidationReport JSON. No prose, no markdown fences.
 
 ValidationReport JSON shape:
@@ -159,7 +164,7 @@ ValidationReport JSON shape:
     {
       "id": "reference_style|doi_verification|title_page|declarations|legitimacy",
       "title": "...",
-      "status": "pass|warn|fail|pending",
+      "status": "pass|warn|fail",
       "explanation": "...",
       "evidence_from_guideline": [
         { "page": 4, "chunk_index_on_page": 2, "excerpt": "..." }
@@ -177,10 +182,15 @@ MANUSCRIPT:
 TARGET JOURNAL:
 {{ JSON.stringify($json.journal, null, 2) }}
 
-RETRIEVED GUIDELINE PASSAGES (top-5 from the journal's official author guideline):
-{{ JSON.stringify($json.guideline_chunks, null, 2) }}
+Call your tools (qdrant_search, get_reference_rules, crossref_verify_doi, doaj_lookup) to gather evidence, then produce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only.`;
 
-Produce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only.`;
+const QDRANT_TOOL_DESCRIPTION = `Semantic search over the target journal's official author guideline (the manuscript's destination journal). Input is a natural-language query like "title page requirements" or "conflict of interest statement". Returns the top-5 most relevant passages, each with its page number and chunk_index_on_page. Use this for any question about the journal's format requirements.`;
+
+const REF_RULES_TOOL_DESCRIPTION = `Get all formatting rules for a reference style. Valid style_name values: "APA 7", "IEEE", "Vancouver", "Harvard", "Chicago". Call once with the journal's required_reference_style.`;
+
+const CROSSREF_TOOL_DESCRIPTION = `Verify that a DOI resolves to a real Crossref record. Input is a DOI like "10.1109/CVPR.2022.12345" (no URL prefix). Returns 200 with metadata if found, 404 if not. Use to check whether references[].doi values are real.`;
+
+const DOAJ_TOOL_DESCRIPTION = `Look up a journal in DOAJ (Directory of Open Access Journals) by ISSN. Input is an ISSN like "1939-3539". Non-empty results signal OA legitimacy. Empty results do NOT mean illegitimate — many reputable journals are not OA.`;
 
 const webhookTrigger = trigger({
   type: 'n8n-nodes-base.webhook',
@@ -249,41 +259,6 @@ const mergeJournalAndManuscript = merge({
   }
 });
 
-const geminiEmbeddings = embeddings({
-  type: '@n8n/n8n-nodes-langchain.embeddingsGoogleGemini',
-  version: 1,
-  config: {
-    name: 'Gemini Embeddings',
-    parameters: {},
-    position: [976, 336]
-  }
-});
-
-const searchGuidelineChunks = node({
-  type: '@n8n/n8n-nodes-langchain.vectorStoreQdrant',
-  version: 1.3,
-  config: {
-    name: 'Search Guideline Chunks',
-    parameters: {
-      mode: 'load',
-      qdrantCollection: {
-        __rl: true,
-        mode: 'list',
-        value: 'guideline_chunks',
-        cachedResultName: 'guideline_chunks'
-      },
-      prompt: expr('{{ $json.manuscript.abstract || "reference style, title page, authors, affiliations, declarations" }}'),
-      topK: 5,
-      options: {
-        searchFilterJson: expr('{"must":[{"key":"metadata.journal_id","match":{"value":"{{ $json.journal_id }}"}}]}'),
-        contentPayloadKey: 'text'
-      }
-    },
-    subnodes: { embedding: geminiEmbeddings },
-    position: [896, 112]
-  }
-});
-
 const bundleContext = node({
   type: 'n8n-nodes-base.code',
   version: 2,
@@ -292,7 +267,98 @@ const bundleContext = node({
     parameters: {
       jsCode: BUNDLE_CONTEXT_JS
     },
-    position: [1248, 112]
+    position: [896, 112]
+  }
+});
+
+const geminiEmbeddings = embeddings({
+  type: '@n8n/n8n-nodes-langchain.embeddingsGoogleGemini',
+  version: 1,
+  config: {
+    name: 'Gemini Embeddings',
+    parameters: {},
+    position: [1248, 432]
+  }
+});
+
+const qdrantSearchTool = tool({
+  type: '@n8n/n8n-nodes-langchain.vectorStoreQdrant',
+  version: 1.3,
+  config: {
+    name: 'qdrant_search',
+    parameters: {
+      mode: 'retrieve-as-tool',
+      toolDescription: QDRANT_TOOL_DESCRIPTION,
+      qdrantCollection: {
+        __rl: true,
+        mode: 'list',
+        value: 'guideline_chunks',
+        cachedResultName: 'guideline_chunks'
+      },
+      topK: 5,
+      includeDocumentMetadata: true,
+      options: {
+        searchFilterJson: expr(`{"must":[{"key":"metadata.journal_id","match":{"value":"{{ $('Merge').first().json.journal_id }}"}}]}`),
+        contentPayloadKey: 'text'
+      }
+    },
+    subnodes: { embedding: geminiEmbeddings },
+    position: [1248, 320]
+  }
+});
+
+const getReferenceRulesTool = tool({
+  type: 'n8n-nodes-base.httpRequestTool',
+  version: 4.4,
+  config: {
+    name: 'get_reference_rules',
+    parameters: {
+      toolDescription: REF_RULES_TOOL_DESCRIPTION,
+      method: 'GET',
+      url: expr("http://host.docker.internal:8000/reference-rules/{{ encodeURIComponent($fromAI('style_name', 'Reference style name. One of: APA 7, IEEE, Vancouver, Harvard, Chicago.', 'string')) }}"),
+      options: {}
+    },
+    position: [1408, 320]
+  }
+});
+
+const crossrefVerifyDoiTool = tool({
+  type: 'n8n-nodes-base.httpRequestTool',
+  version: 4.4,
+  config: {
+    name: 'crossref_verify_doi',
+    parameters: {
+      toolDescription: CROSSREF_TOOL_DESCRIPTION,
+      method: 'GET',
+      url: expr("https://api.crossref.org/works/{{ $fromAI('doi', 'A DOI such as 10.1109/CVPR.2022.12345 (no URL prefix).', 'string') }}"),
+      sendHeaders: true,
+      specifyHeaders: 'keypair',
+      headerParameters: {
+        parameters: [
+          {
+            name: 'User-Agent',
+            value: 'PaperReady/0.1 (mailto:contact@paperready.example)'
+          }
+        ]
+      },
+      options: {}
+    },
+    position: [1568, 320]
+  }
+});
+
+const doajLookupTool = tool({
+  type: 'n8n-nodes-base.httpRequestTool',
+  version: 4.4,
+  config: {
+    name: 'doaj_lookup',
+    parameters: {
+      toolDescription: DOAJ_TOOL_DESCRIPTION,
+      method: 'GET',
+      url: expr("https://doaj.org/api/search/journals/issn:{{ $fromAI('issn', 'An ISSN such as 1939-3539.', 'string') }}"),
+      options: {}
+    },
+    position: [1728, 320]
   }
 });
 
@@ -308,7 +374,7 @@ const geminiChatModel = languageModel({
         maxOutputTokens: 4096
       }
     },
-    position: [1552, 336]
+    position: [1088, 320]
   }
 });
 
@@ -322,11 +388,14 @@ const validatorAgent = node({
       text: VALIDATOR_USER_PROMPT,
       options: {
         systemMessage: VALIDATOR_SYSTEM_MESSAGE,
-        maxIterations: 4
+        maxIterations: 12
       }
     },
-    subnodes: { model: geminiChatModel },
-    position: [1472, 112]
+    subnodes: {
+      model: geminiChatModel,
+      tools: [qdrantSearchTool, getReferenceRulesTool, crossrefVerifyDoiTool, doajLookupTool]
+    },
+    position: [1120, 112]
   }
 });
 
@@ -338,7 +407,7 @@ const respond = node({
     parameters: {
       options: { responseCode: 200 }
     },
-    position: [1824, 112]
+    position: [1392, 112]
   }
 });
 
@@ -348,7 +417,6 @@ export default workflow('paperready-validate', 'PaperReady — Validate')
   .add(webhookTrigger)
   .to(fetchJournal.to(mergeJournalAndManuscript.input(1)))
   .add(mergeJournalAndManuscript)
-  .to(searchGuidelineChunks)
   .to(bundleContext)
   .to(validatorAgent)
   .to(respond);
