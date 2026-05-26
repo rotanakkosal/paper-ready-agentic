@@ -192,6 +192,32 @@ const CROSSREF_TOOL_DESCRIPTION = `Verify that a DOI resolves to a real Crossref
 
 const DOAJ_TOOL_DESCRIPTION = `Look up a journal in DOAJ (Directory of Open Access Journals) by ISSN. Input is an ISSN like "1939-3539". Non-empty results signal OA legitimacy. Empty results do NOT mean illegitimate — many reputable journals are not OA.`;
 
+const CLEAN_OUTPUT_JS = `// Clean Output — runs after the Validator Agent, before Respond to Webhook.
+//
+// The Validator Agent emits { output: "\\\`\\\`\\\`json\\n{...ValidationReport...}\\n\\\`\\\`\\\`" }
+// — the report is wrapped in a markdown fenced code block inside a string.
+// This node strips the fences and parses the inner JSON so the webhook
+// responds with a clean ValidationReport object.
+
+const raw = $input.first().json.output;
+
+let parsed;
+if (raw && typeof raw === 'object') {
+  parsed = raw;
+} else {
+  let text = String(raw ?? '').trim();
+  const fenceMatch = text.match(/^\`\`\`(?:json)?\\s*\\n?([\\s\\S]*?)\\n?\`\`\`\\s*$/i);
+  if (fenceMatch) text = fenceMatch[1].trim();
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return [{ json: { error: 'failed to parse agent output', message: e.message, raw } }];
+  }
+}
+
+return [{ json: parsed }];
+`;
+
 const webhookTrigger = trigger({
   type: 'n8n-nodes-base.webhook',
   version: 2.1,
@@ -399,6 +425,18 @@ const validatorAgent = node({
   }
 });
 
+const cleanOutput = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Clean Output',
+    parameters: {
+      jsCode: CLEAN_OUTPUT_JS
+    },
+    position: [1536, 112]
+  }
+});
+
 const respond = node({
   type: 'n8n-nodes-base.respondToWebhook',
   version: 1.5,
@@ -407,7 +445,7 @@ const respond = node({
     parameters: {
       options: { responseCode: 200 }
     },
-    position: [1392, 112]
+    position: [1760, 112]
   }
 });
 
@@ -419,4 +457,5 @@ export default workflow('paperready-validate', 'PaperReady — Validate')
   .add(mergeJournalAndManuscript)
   .to(bundleContext)
   .to(validatorAgent)
+  .to(cleanOutput)
   .to(respond);
