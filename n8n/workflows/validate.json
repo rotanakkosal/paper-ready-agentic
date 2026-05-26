@@ -8,15 +8,15 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-validate-trigger",
+      "id": "5e054e26-3e3a-440c-bb81-e0304fab0366",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        240,
-        300
+        0,
+        112
       ],
-      "webhookId": "paperready-validate"
+      "webhookId": "16f7bd56-4ab2-43d5-bdb6-778c72bdd7e5"
     },
     {
       "parameters": {
@@ -24,74 +24,154 @@
         "binaryPropertyName": "pdf",
         "options": {}
       },
-      "id": "extract-pdf",
+      "id": "de7b658d-c808-4274-b81f-4a522c575581",
       "name": "Extract from File",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1.1,
       "position": [
-        480,
-        200
+        224,
+        16
       ]
     },
     {
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
-        "jsCode": "// Manuscript parser — runs inside the n8n \"Code\" node of the validate workflow.\n//\n// Input:  $input.first().json from the upstream \"Extract from File\" node\n//           - .text       full extracted PDF text\n//           - .numpages   page count\n//         $('Webhook').first().json.body.journal_id\n//\n// Output: a single item whose json is { journal_id, manuscript: ParsedManuscript }\n//         The ParsedManuscript shape matches docs/design/n8n-validate-workflow.md.\n//\n// Parsing is intentionally heuristic — the agent reasons over these fields\n// with retrieved guideline context, so the parser only needs to surface\n// structure, not be authoritative.\n\nconst inputJson = $input.first().json;\nconst text = (inputJson.text || '').toString();\nconst pageCount = inputJson.numpages || 0;\nconst journalId = $('Webhook').first().json.body?.journal_id || null;\n\n// --- Title: first long-ish line in the first ~1500 chars (above the abstract) ---\nconst firstChunk = text.slice(0, 1500);\nconst firstLines = firstChunk.split('\\n').map(l => l.trim()).filter(Boolean);\nconst title = firstLines.find(l => l.length > 20 && !/^abstract\\b/i.test(l)) || null;\n\n// --- ORCIDs ---\nconst orcidRe = /\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]/g;\nconst orcids = text.match(orcidRe) || [];\n\n// --- Abstract: text between \"Abstract\" and the next major heading ---\nconst absMatch = text.match(/Abstract[\\s\\-:.]+([\\s\\S]{50,2500}?)(?=Keywords|Introduction|1\\.\\s|I\\.\\s|\\n\\n\\n)/i);\nconst abstract = absMatch ? absMatch[1].trim() : null;\n\n// --- Sections: capitalised heading-like lines ---\nconst sectionRe = /^(?:\\d+\\.?\\s+)?([A-Z][A-Za-z ]{3,40})$/gm;\nconst sectionsSet = new Set();\nlet mSec;\nwhile ((mSec = sectionRe.exec(text)) !== null) sectionsSet.add(mSec[1].trim());\nconst sections_detected = Array.from(sectionsSet);\n\n// --- Declarations: simple substring probes ---\nconst lower = text.toLowerCase();\nconst declarations = {\n  conflict_of_interest: /conflict[s]? of interest|competing interest/.test(lower) ? 'found' : 'missing',\n  funding: /\\bfunding\\b|funded by|\\bgrant\\b/.test(lower) ? 'found' : 'missing',\n  data_availability: /data availability|data sharing/.test(lower) ? 'found' : 'missing',\n  ethics: /ethics statement|ethical (review|approval)|irb approval/.test(lower) ? 'found' : 'missing'\n};\n\n// --- References + DOIs ---\nconst doiRe = /10\\.\\d{4,9}\\/[-._;()\\/:A-Z0-9]+/gi;\nconst refsIdx = text.search(/\\bReferences\\b/i);\nlet refsBlock = refsIdx >= 0 ? text.slice(refsIdx).replace(/^References[\\s\\S]{0,10}/i, '') : '';\nconst rawRefs = refsBlock\n  .split(/\\n\\s*(?:\\[\\d+\\]|\\d+\\.)\\s+/)\n  .map(s => s.trim())\n  .filter(s => s.length > 20)\n  .slice(0, 100);\nconst references = rawRefs.map(raw => {\n  const dm = raw.match(doiRe);\n  return { raw: raw.slice(0, 300), doi: dm ? dm[0] : null };\n});\nconst allDois = text.match(doiRe) || [];\n\nreturn [{\n  json: {\n    journal_id: journalId,\n    manuscript: {\n      title,\n      orcids_found: orcids,\n      abstract,\n      sections_detected,\n      declarations,\n      references,\n      stats: {\n        page_count: pageCount,\n        reference_count: references.length,\n        doi_count: allDois.length,\n        orcid_count: orcids.length\n      }\n    }\n  }\n}];\n"
+        "jsCode": "const inputJson = $input.first().json;\nconst text = (inputJson.text || '').toString();\nconst pageCount = inputJson.numpages || 0;\nconst journalId = $('Webhook').first().json.body?.journal_id || null;\n\nconst firstChunk = text.slice(0, 1500);\nconst firstLines = firstChunk.split('\\n').map(l => l.trim()).filter(Boolean);\nconst title = firstLines.find(l => l.length > 20 && !/^abstract\\b/i.test(l)) || null;\n\nconst orcidRe = /\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]/g;\nconst orcids = text.match(orcidRe) || [];\n\nconst absMatch = text.match(/Abstract[\\s\\-:.]+([\\s\\S]{50,2500}?)(?=Keywords|Introduction|1\\.\\s|I\\.\\s|\\n\\n\\n)/i);\nconst abstract = absMatch ? absMatch[1].trim() : null;\n\nconst sectionRe = /^(?:\\d+\\.?\\s+)?([A-Z][A-Za-z ]{3,40})$/gm;\nconst sectionsSet = new Set();\nlet mSec;\nwhile ((mSec = sectionRe.exec(text)) !== null) sectionsSet.add(mSec[1].trim());\nconst sections_detected = Array.from(sectionsSet);\n\nconst lower = text.toLowerCase();\nconst declarations = {\n  conflict_of_interest: /conflict[s]? of interest|competing interest/.test(lower) ? 'found' : 'missing',\n  funding: /\\bfunding\\b|funded by|\\bgrant\\b/.test(lower) ? 'found' : 'missing',\n  data_availability: /data availability|data sharing/.test(lower) ? 'found' : 'missing',\n  ethics: /ethics statement|ethical (review|approval)|irb approval/.test(lower) ? 'found' : 'missing'\n};\n\nconst doiRe = /10\\.\\d{4,9}\\/[-._;()\\/:A-Z0-9]+/gi;\nconst refsIdx = text.search(/\\bReferences\\b/i);\nlet refsBlock = refsIdx >= 0 ? text.slice(refsIdx).replace(/^References[\\s\\S]{0,10}/i, '') : '';\nconst rawRefs = refsBlock\n  .split(/\\n\\s*(?:\\[\\d+\\]|\\d+\\.)\\s+/)\n  .map(s => s.trim())\n  .filter(s => s.length > 20)\n  .slice(0, 100);\nconst references = rawRefs.map(raw => {\n  const dm = raw.match(doiRe);\n  return { raw: raw.slice(0, 300), doi: dm ? dm[0] : null };\n});\nconst allDois = text.match(doiRe) || [];\n\nreturn [{\n  json: {\n    journal_id: journalId,\n    manuscript: {\n      title,\n      orcids_found: orcids,\n      abstract,\n      sections_detected,\n      declarations,\n      references,\n      stats: {\n        page_count: pageCount,\n        reference_count: references.length,\n        doi_count: allDois.length,\n        orcid_count: orcids.length\n      }\n    }\n  }\n}];\n"
       },
-      "id": "parse-manuscript",
+      "id": "6aefcf5b-e926-4e2d-af87-5cb0a7d835b7",
       "name": "Parse Manuscript",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        200
+        448,
+        16
       ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=http://host.docker.internal:8000/journals/{{ $json.body.journal_id }}",
         "options": {}
       },
-      "id": "get-journal-metadata",
+      "id": "a6cbfdc9-8410-4789-be9b-2a447a3f1fcc",
       "name": "Get Journal Metadata",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        480,
-        420
+        448,
+        208
       ]
     },
     {
       "parameters": {
         "mode": "combine",
         "combineBy": "combineByPosition",
-        "numberInputs": 2
+        "options": {}
       },
-      "id": "merge-journal-manuscript",
+      "id": "82ec0586-4b30-4d69-bdc6-2d1edc128939",
       "name": "Merge",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        960,
-        300
+        672,
+        112
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2a31c1f7-3800-4d80-a48e-c34f573fb051",
+      "name": "Gemini Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        976,
+        336
       ]
     },
     {
       "parameters": {
-        "respondWith": "firstIncomingItem",
+        "mode": "load",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "list",
+          "value": "guideline_chunks",
+          "cachedResultName": "guideline_chunks"
+        },
+        "prompt": "={{ $json.manuscript.abstract || \"reference style, title page, authors, affiliations, declarations\" }}",
+        "topK": 5,
+        "options": {
+          "searchFilterJson": "={\"must\":[{\"key\":\"metadata.journal_id\",\"match\":{\"value\":\"{{ $json.journal_id }}\"}}]}",
+          "contentPayloadKey": "text"
+        }
+      },
+      "id": "7451d2d4-c0a7-4555-9e8f-c76ca7a90825",
+      "name": "Search Guideline Chunks",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunks = $input.all().map(item => {\n  const j = item.json || {};\n  const doc = j.document || {};\n  const md = j.metadata || doc.metadata || {};\n  return {\n    excerpt: j.pageContent || doc.pageContent || j.text || '',\n    page: md.page ?? null,\n    chunk_index_on_page: md.chunk_index_on_page ?? null,\n    score: j.score ?? null\n  };\n});\n\nconst m = $('Merge').first().json;\nconst manuscript = m.manuscript || null;\nconst journal = {\n  journal_id: m.journal_id ?? null,\n  name: m.name ?? null,\n  required_reference_style: m.required_reference_style ?? null,\n  issn: m.issn ?? null,\n  reputation_flag: m.reputation_flag ?? null,\n  url: m.url ?? null\n};\n\nreturn [{ json: { manuscript, journal, guideline_chunks: chunks } }];\n"
+      },
+      "id": "3673cc4b-f413-4456-8f56-86a9babf9f2b",
+      "name": "Bundle Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.2,
+          "maxOutputTokens": 4096
+        }
+      },
+      "id": "af6e3ffc-ad40-44b7-89f8-e657a798a977",
+      "name": "Gemini 2.5 Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Validate the manuscript below against the target journal.\n\nMANUSCRIPT:\n{{ JSON.stringify($json.manuscript, null, 2) }}\n\nTARGET JOURNAL:\n{{ JSON.stringify($json.journal, null, 2) }}\n\nRETRIEVED GUIDELINE PASSAGES (top-5 from the journal's official author guideline):\n{{ JSON.stringify($json.guideline_chunks, null, 2) }}\n\nProduce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only.",
+        "options": {
+          "systemMessage": "You are PaperReady, a pre-submission validator for academic manuscripts.\n\nYou receive three inputs in the user message:\n  - manuscript: structured fields parsed from the user's PDF (title, authors/ORCIDs,\n    abstract, sections_detected, declarations, references[], stats)\n  - journal: target journal metadata (journal_id, name, required_reference_style,\n    issn, reputation_flag, url)\n  - guideline_chunks: top-5 relevant passages already retrieved from the journal's\n    official author guideline, each with {excerpt, page, chunk_index_on_page, score}\n\nProduce a ValidationReport JSON with five categories:\n  1. reference_style  - does manuscript.references appear to follow\n                        journal.required_reference_style? Inspect the first 5\n                        references.raw values for numbering, ordering, punctuation.\n  2. doi_verification - list DOIs found in manuscript.references[] (status \"pending\"\n                        - Crossref check is not yet wired in this draft).\n  3. title_page       - what does the guideline (guideline_chunks) require for title,\n                        authors, affiliations, corresponding author, ORCIDs? What is\n                        present in manuscript.title / manuscript.orcids_found /\n                        manuscript.sections_detected?\n  4. declarations     - does the guideline require COI / funding / data-availability /\n                        ethics statements? Are they present in manuscript.declarations?\n  5. legitimacy       - base on journal.reputation_flag if set; otherwise status\n                        \"pending\" (DOAJ lookup is not yet wired).\n\nRules:\n  - Cite guideline_chunks by {page, chunk_index_on_page} in evidence_from_guideline.\n  - Never fabricate citations. If no chunk addresses a topic, write\n    \"guideline silent on this\" and use status \"warn\" or \"pending\".\n  - Output ONLY the ValidationReport JSON. No prose, no markdown fences.\n\nValidationReport JSON shape:\n{\n  \"journal\": { \"journal_id\": \"...\", \"name\": \"...\", \"required_reference_style\": \"...\" },\n  \"summary\": { \"verdict\": \"pass|needs_revision|fail\",\n               \"pass_count\": 0, \"warn_count\": 0, \"fail_count\": 0 },\n  \"categories\": [\n    {\n      \"id\": \"reference_style|doi_verification|title_page|declarations|legitimacy\",\n      \"title\": \"...\",\n      \"status\": \"pass|warn|fail|pending\",\n      \"explanation\": \"...\",\n      \"evidence_from_guideline\": [\n        { \"page\": 4, \"chunk_index_on_page\": 2, \"excerpt\": \"...\" }\n      ],\n      \"items\": [ { \"label\": \"...\", \"status\": \"...\", \"detail\": \"...\" } ]\n    }\n  ]\n}",
+          "maxIterations": 4
+        }
+      },
+      "id": "7b69d29e-0b5e-4272-9b13-aa60a6921f50",
+      "name": "Validator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1472,
+        112
+      ]
+    },
+    {
+      "parameters": {
         "options": {
           "responseCode": 200
         }
       },
-      "id": "respond-to-webhook",
+      "id": "97e28f3f-5fa9-477e-aa2d-1fe2fec3bd30",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1200,
-        300
+        1824,
+        112
       ]
     }
   ],
@@ -146,6 +226,61 @@
       ]
     },
     "Merge": {
+      "main": [
+        [
+          {
+            "node": "Search Guideline Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Search Guideline Chunks",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Guideline Chunks": {
+      "main": [
+        [
+          {
+            "node": "Bundle Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bundle Context": {
+      "main": [
+        [
+          {
+            "node": "Validator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Validator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validator Agent": {
       "main": [
         [
           {
