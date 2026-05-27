@@ -431,9 +431,9 @@ const geminiChatModel = languageModel({
   type: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
   version: 1.1,
   config: {
-    name: 'Gemini 2.5 Flash',
+    name: 'Gemini 2.5 Flash Lite',
     parameters: {
-      modelName: 'models/gemini-2.5-flash',
+      modelName: 'models/gemini-2.5-flash-lite',
       options: {
         temperature: 0.2,
         maxOutputTokens: 4096
