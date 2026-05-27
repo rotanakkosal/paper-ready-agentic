@@ -49,6 +49,24 @@ export type ValidationSummary = {
   fail_count: number;
 };
 
+/**
+ * One row of the journal's submission requirements. The agent produces 8-15 of
+ * these per report — atomic, must-have statements like "Title page lists all
+ * author affiliations" or "References follow IEEE numbered style", each scored
+ * pass/warn/fail/pending for this specific manuscript.
+ *
+ * This is the "Submission Checklist" block in the system architecture: a
+ * journal-requirement view, not a per-finding view.
+ */
+export type SubmissionChecklistItem = {
+  requirement: string;
+  status: CategoryStatus;
+  /** One-sentence reason this requirement passed / failed. */
+  detail?: string;
+  /** Page in the author guideline where this requirement is stated, if cited. */
+  guideline_page?: number;
+};
+
 export type ValidationReport = {
   journal?: {
     journal_id: string;
@@ -57,6 +75,13 @@ export type ValidationReport = {
   };
   summary?: ValidationSummary;
   categories?: Category[];
+  /**
+   * Flat list of journal submission requirements with this manuscript's
+   * per-requirement status. The "Submission Checklist" final-phase output.
+   * Older reports (pre-checklist-extension) may not include this; the UI
+   * falls back to deriving an approximation from `categories[].items`.
+   */
+  submission_checklist?: SubmissionChecklistItem[];
   /**
    * Optional 150–250 word draft cover letter the agent produces alongside the
    * validation. Plain text with \n line breaks. Absent on older reports

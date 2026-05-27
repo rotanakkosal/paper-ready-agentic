@@ -33,7 +33,12 @@ export default function JournalSelect({ value, onChange, disabled }: Props) {
           setState("error");
           return;
         }
-        setJournals(data.journals ?? []);
+        const sorted = [...(data.journals ?? [])].sort((a, b) =>
+          (a.name ?? "").localeCompare(b.name ?? "", undefined, {
+            sensitivity: "base",
+          }),
+        );
+        setJournals(sorted);
         setState("ready");
       } catch (e) {
         if (cancelled) return;

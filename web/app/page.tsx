@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Library, FileUp, ListChecks } from "lucide-react";
 import {
   Card,
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import UploadForm, { type Status } from "@/components/UploadForm";
 import ReportPanel from "@/components/ReportPanel";
 import type { ValidationReport } from "@/lib/types";
+import { DEMO_REPORT } from "@/lib/demo-report";
 
 const HOW_IT_WORKS = [
   {
@@ -40,6 +41,15 @@ export default function Home() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "1") {
+      setReport(DEMO_REPORT);
+      setStatus("success");
+    }
+  }, []);
+
   const onStatusChange = useCallback(
     (next: Status, msg?: string | null) => {
       setStatus(next);
@@ -48,14 +58,18 @@ export default function Home() {
     [],
   );
 
+  const onReset = useCallback(() => {
+    setReport(null);
+    setStatus("idle");
+    setErrorMessage(null);
+  }, []);
+
+  const compactForm = status === "success" && report !== null;
+
   return (
     <div className="flex min-h-full flex-col bg-muted/30">
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         <header className="mb-8">
-          {/* <Badge variant="outline" className="mb-3 gap-1.5">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Agentic RAG · pre-submission validator
-          </Badge> */}
           <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             PaperReady
           </h1>
@@ -66,14 +80,37 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <UploadForm onReport={setReport} onStatusChange={onStatusChange} />
-          <ReportPanel
-            status={status}
-            report={report}
-            errorMessage={errorMessage}
-          />
-        </div>
+        {compactForm ? (
+          <div className="space-y-6">
+            <UploadForm
+              onReport={setReport}
+              onStatusChange={onStatusChange}
+              compact
+              onReset={onReset}
+              report={report}
+            />
+            <ReportPanel
+              status={status}
+              report={report}
+              errorMessage={errorMessage}
+            />
+          </div>
+        ) : (
+          /* Idle / loading / error — two-column grid with form on the left. */
+          <div className="grid gap-6 md:grid-cols-2 md:items-start">
+            <UploadForm
+              onReport={setReport}
+              onStatusChange={onStatusChange}
+              compact={false}
+              onReset={onReset}
+            />
+            <ReportPanel
+              status={status}
+              report={report}
+              errorMessage={errorMessage}
+            />
+          </div>
+        )}
 
         {status === "idle" && (
           <section className="mt-10">
@@ -102,8 +139,7 @@ export default function Home() {
           </section>
         )}
       </main>
-
-      <footer className="border-t border-border bg-card">
+      {/* <footer className="border-t border-border bg-card">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted-foreground">
           <span>
             PaperReady · Midterm project, Big Data Analysis (8862016-01), Spring
@@ -113,7 +149,7 @@ export default function Home() {
             n8n · Gemini 2.5 Flash · Qdrant · Crossref · DOAJ
           </span>
         </div>
-      </footer>
+      </footer> */}
     </div>
   );
 }

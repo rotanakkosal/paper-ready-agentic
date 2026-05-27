@@ -6,12 +6,9 @@ import {
   FileText,
   CloudUpload,
   X,
-  BookOpen,
-  Search,
-  BrainCircuit,
-  Sparkles,
-  CheckCircle2,
   AlertCircle,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Card,
@@ -30,41 +27,35 @@ export type Status = "idle" | "loading" | "error" | "success";
 type Props = {
   onReport: (report: ValidationReport | null) => void;
   onStatusChange: (status: Status, errorMessage?: string | null) => void;
+  /** When true, render a small "submitted" summary instead of the full form. */
+  compact?: boolean;
+  /** Called when the user wants to clear the report and submit a new one. */
+  onReset?: () => void;
+  /**
+   * The report (when present) lets the compact bar show the full journal name
+   * and verdict instead of just the journal slug. Works for demo-mode too,
+   * where the form's internal state is empty but the report is populated.
+   */
+  report?: ValidationReport | null;
 };
 
-const LOADING_STEPS = [
-  { icon: FileText, label: "Parsing manuscript PDF" },
-  { icon: BookOpen, label: "Loading journal guideline from Qdrant" },
-  { icon: Search, label: "Checking references against Crossref" },
-  { icon: BrainCircuit, label: "Agent reasoning about compliance" },
-  { icon: Sparkles, label: "Assembling validation report" },
-];
-
-export default function UploadForm({ onReport, onStatusChange }: Props) {
+export default function UploadForm({
+  onReport,
+  onStatusChange,
+  compact = false,
+  onReset,
+  report = null,
+}: Props) {
   const [journalId, setJournalId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [loadingStep, setLoadingStep] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     onStatusChange(status, errorMessage);
   }, [status, errorMessage, onStatusChange]);
-
-  // Cycle through honest-ish loading steps while the agent runs.
-  // ~5s per step × 5 steps ≈ 25s matches typical agent latency.
-  useEffect(() => {
-    if (status !== "loading") {
-      setLoadingStep(0);
-      return;
-    }
-    const t = setInterval(() => {
-      setLoadingStep((s) => Math.min(s + 1, LOADING_STEPS.length - 1));
-    }, 5000);
-    return () => clearInterval(t);
-  }, [status]);
 
   function pickFile(f: File | null) {
     if (f && f.type === "application/pdf") {
@@ -109,6 +100,58 @@ export default function UploadForm({ onReport, onStatusChange }: Props) {
     }
   }
 
+  function handleReset() {
+    // Keep journal selection (likely re-validating against same journal),
+    // clear file so user picks a fresh one.
+    setFile(null);
+    setStatus("idle");
+    setErrorMessage(null);
+    onReport(null);
+    onReset?.();
+  }
+
+  // -------- Compact summary bar (report is showing) --------
+  if (compact) {
+    const journalName =
+      report?.journal?.name ?? (journalId ? journalId : "the target journal");
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-50">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">
+            Manuscript submitted
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {file ? (
+              <>
+                <FileText className="-mt-0.5 mr-1 inline h-3 w-3" />
+                <span className="font-medium text-foreground">{file.name}</span>
+                <span> · {(file.size / 1024).toFixed(0)} KB</span>
+                <span> · validated against </span>
+              </>
+            ) : (
+              <span>Validated against </span>
+            )}
+            <span className="font-medium text-foreground">{journalName}</span>
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleReset}
+          className="shrink-0 gap-1.5"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Validate another
+        </Button>
+      </div>
+    );
+  }
+
+  // -------- Full form view (default) --------
   const submitDisabled = status === "loading" || !journalId || !file;
 
   return (
@@ -217,46 +260,6 @@ export default function UploadForm({ onReport, onStatusChange }: Props) {
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {status === "loading" && (
-            <div className="rounded-lg border border-border bg-accent/40 p-3.5">
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Validating · typically 20–30 seconds
-              </div>
-              <ul className="space-y-1.5">
-                {LOADING_STEPS.map((s, i) => {
-                  const Icon = s.icon;
-                  const done = i < loadingStep;
-                  const active = i === loadingStep;
-                  return (
-                    <li
-                      key={i}
-                      className={
-                        "flex items-center gap-2 text-sm " +
-                        (done
-                          ? "text-foreground"
-                          : active
-                            ? "font-medium text-foreground"
-                            : "text-muted-foreground/60")
-                      }
-                    >
-                      <span className="inline-flex h-5 w-5 items-center justify-center">
-                        {done ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        ) : (
-                          <Icon className="h-4 w-4" />
-                        )}
-                      </span>
-                      <span>{s.label}</span>
-                      {active && (
-                        <span className="ml-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
             </div>
           )}
 
