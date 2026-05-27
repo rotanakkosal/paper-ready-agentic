@@ -23,14 +23,14 @@ You don't need to source any data yourself. The repo ships with everything requi
 
 ### Supported journals
 
-The dropdown lists all 58 entries from `journal_metadata.csv`, but only two journals ship with their author guidelines ingested into Qdrant. These are the two that work end-to-end out of the box:
+The dropdown is driven by Qdrant. The sidecar's `/journals` endpoint scrolls the `guideline_chunks` collection on every request and returns only the journals that actually have author guidelines indexed, so the UI never offers a journal the agent can't retrieve from. Out of the box that's:
 
 | journal_id | Name | Publisher | Reference style |
 |---|---|---|---|
 | `tpami` | IEEE Transactions on Pattern Analysis and Machine Intelligence | IEEE | IEEE |
 | `ivc` | Image and Vision Computing | Elsevier | Elsevier-Vancouver |
 
-Picking any other journal will still run, but the agent will retrieve zero guideline chunks for it. See [Adding another journal](#adding-another-journal) below to ingest more.
+To add more, see [Adding another journal](#adding-another-journal) below.
 
 ### Prerequisites
 
@@ -96,13 +96,13 @@ Each validation calls Gemini roughly 7 to 10 times (one initial round, one per t
 
 ### Adding another journal
 
-1. If the journal is not already in `ingest/out/journal_metadata.csv`, add a row. The minimum useful columns are `journal_id, name, publisher, required_reference_style, issn`.
+1. If the journal is not already in `ingest/out/journal_metadata.csv`, add a row. The minimum useful columns are `journal_id, name, publisher, required_reference_style, issn`. (Restart the sidecar after this edit so the new row is picked up.)
 2. Save the author-guide PDF at `ingest/data/<journal_id>_author_guide.pdf`.
 3. Embed it into Qdrant:
    ```powershell
    uv run --directory ingest python ingest_guideline.py --journal-id <journal_id> --pdf data/<journal_id>_author_guide.pdf
    ```
-4. Refresh the frontend. The new journal is now selectable and fully supported by the agent.
+4. Refresh the frontend. The dropdown queries Qdrant live, so the new journal shows up as soon as ingest finishes.
 
 ## Architecture
 

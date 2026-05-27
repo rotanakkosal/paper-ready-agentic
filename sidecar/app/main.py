@@ -2,7 +2,8 @@
 
 Structured CSV lookups for the n8n agent + the Next.js dropdown:
   GET  /healthz                          liveness
-  GET  /journals                         list all 58 journals (for frontend dropdown)
+  GET  /journals                         list journals ingested into Qdrant
+  GET  /journals?all=true                list all 58 journals from the CSV
   GET  /journals/{journal_id}            metadata for one journal
   GET  /reference-rules/{style_name}     formatting rules for a reference style
 
@@ -25,8 +26,21 @@ def healthz() -> dict[str, str]:
 
 
 @app.get("/journals")
-def list_journals() -> dict:
+def list_journals(all: bool = Query(default=False)) -> dict:
+    """List journals.
+
+    By default, returns only journals that currently have author-guideline
+    chunks indexed in Qdrant. This is what the frontend dropdown wants — a
+    user can only meaningfully pick a journal the agent can actually
+    retrieve guidelines for.
+
+    Pass `?all=true` to get the full curated CSV (58 journals), e.g. for
+    admin tooling or future workflows that don't depend on Qdrant.
+    """
     journals = data.load_journals()
+    if not all:
+        indexed = data.indexed_journal_ids()
+        journals = [j for j in journals if j["journal_id"] in indexed]
     return {"journals": journals, "count": len(journals)}
 
 
