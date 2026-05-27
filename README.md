@@ -4,8 +4,6 @@
 
 Researchers preparing a paper for journal submission must follow many journal-specific rules buried in long author-guideline PDFs — title page format, ORCID, reference style, figure captions, cover-letter format, conflict-of-interest statements, and more. Manual checking is slow, error-prone, and a common cause of desk rejection. PaperReady reads the target journal's author guidelines, the user's manuscript, and a structured database of journal rules, then produces a validation checklist, a missing-items report, a cover-letter draft, and reference compliance guidance.
 
-Midterm project for **Big Data Analysis (8862016-01)**, Spring 2026. Original proposal: [docs/MIDTERM - Team11 - PaperReady ...pdf](docs/MIDTERM%20-%20Team11%20-%20PaperReady%20-%20An%20Agentic%20RAG%20System%20for%20Pre-Submission%20Manuscript%20Validation%20-%2020260428.pdf).
-
 ![PaperReady UI — submit a manuscript, pick a journal, get a journal-specific compliance report](docs/screenshots/paper-ready-ui.png)
 
 ## Architecture
