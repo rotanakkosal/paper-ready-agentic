@@ -43,10 +43,6 @@ pnpm-debug.log*
 .eslintcache
 next-env.d.ts
 
-# --- Third-party copyrighted source PDFs ---
-ingest/data/*.pdf
-!ingest/data/.gitkeep
-
 # --- Qdrant local volume (if bind-mounted) ---
 qdrant_storage/
 infra/qdrant_data/

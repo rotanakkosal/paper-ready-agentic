@@ -4,46 +4,80 @@
 
 Researchers preparing a paper must follow many journal-specific rules buried in long author-guideline PDFs: title page format, ORCID, reference style, figure captions, cover-letter format, conflict-of-interest statements, and more. Manual checking is slow and a common cause of desk rejection. PaperReady reads the target journal's author guidelines, the user's manuscript, and a curated rules database, then returns a compliance checklist, a missing-items report, a cover-letter draft, and reference compliance guidance.
 
-![PaperReady UI](docs/screenshots/paper-ready-ui.png)
+<p align="center">
+  <img src="docs/screenshots/paper-ready-ui.png" alt="PaperReady dashboard" width="49%" />
+  <img src="docs/screenshots/paper-ready-report-ui.png" alt="PaperReady validation report" width="49%" />
+</p>
 
 ## Running locally
 
+### What's already in the repo
+
+You don't need to source any data yourself. The repo ships with everything required for a first run:
+
+- `ingest/out/journal_metadata.csv` (58 curated journals)
+- `ingest/out/reference_style_rules.csv` (68 curated style rules)
+- `ingest/data/tpami_author_guide.pdf` and `ingest/data/ivc_author_guide.pdf` (the two guideline PDFs to embed)
+- `ingest/data/sample_manuscript.pdf` (a Vision Transformer paper to validate against)
+- `n8n/workflows/validate.json` (the agent workflow, ready to import)
+
 ### Prerequisites
 
-- **Docker Desktop** for Qdrant and n8n
-- **Node.js 20.9+** for the Next.js frontend
-- **uv** (Python 3.11+) for the sidecar and ingest script
-- A **Google AI Studio API key**. The free tier is enough for development: <https://aistudio.google.com/apikey>
-- A running **n8n instance** at `localhost:5678`. Import `n8n/workflows/validate.json`.
+1. **Docker Desktop** for Qdrant and n8n
+2. **Node.js 20.9+** for the Next.js frontend
+3. **uv** (Python 3.11+) for the sidecar and ingest script
+4. A **Google AI Studio API key** (free tier is enough): <https://aistudio.google.com/apikey>
+5. A local **n8n instance** running at `http://localhost:5678`
 
-### Setup
+### Step 1. Start Qdrant
 
 ```powershell
-# 1) Qdrant
 docker compose -f infra/docker-compose.yml up -d
+```
 
-# 2) Gemini API key
+### Step 2. Set your Gemini API key
+
+```powershell
 cp ingest/.env.example ingest/.env
-# Edit ingest/.env and set GOOGLE_API_KEY=AIza...
+```
 
-# 3) Place author-guideline PDFs into ingest/data/, then ingest each one
+Then edit `ingest/.env` and set `GOOGLE_API_KEY=AIza...`.
+
+### Step 3. Embed the guideline PDFs into Qdrant
+
+```powershell
 uv run --directory ingest python ingest_guideline.py --journal-id tpami --pdf data/tpami_author_guide.pdf
 uv run --directory ingest python ingest_guideline.py --journal-id ivc   --pdf data/ivc_author_guide.pdf
+```
 
-# 4) Start the Python sidecar
+This produces 235 chunks across the two journals. The script throttles itself for the Gemini free-tier embedding quota, so each PDF takes about 2 minutes.
+
+### Step 4. Start the Python sidecar
+
+```powershell
 uv run --directory sidecar uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-# 5) Start n8n at localhost:5678
-#    Import n8n/workflows/validate.json, create a "Google Gemini(PaLM) Api"
-#    credential using GOOGLE_API_KEY, attach it to the Gemini subnodes, and publish.
+Leave this running. It serves the CSV lookups at `http://127.0.0.1:8000`.
 
-# 6) Start the frontend
+### Step 5. Import and publish the n8n workflow
+
+In the n8n web UI at `http://localhost:5678`:
+
+1. **Import** `n8n/workflows/validate.json` (Workflows, then "Import from File").
+2. **Create a credential**: Credentials, then "New", then `Google Gemini(PaLM) Api`. Paste your `GOOGLE_API_KEY`.
+3. **Attach the credential** to both Gemini subnodes inside the workflow (the embedding node and the chat-model node on the Validator Agent).
+4. **Publish** the workflow (toggle the Active switch).
+
+### Step 6. Start the frontend
+
+```powershell
 cd web
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>, pick a journal, upload a PDF, click **Validate**.
+Open <http://localhost:3000>, pick **TPAMI** in the dropdown, drag `ingest/data/sample_manuscript.pdf` onto the form, and click **Validate**. About 25 seconds later the report appears.
 
 ### Free-tier rate limits
 
