@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import UploadForm from "@/components/UploadForm";
+import VerdictBanner from "@/components/report/VerdictBanner";
+import CategoryCard from "@/components/report/CategoryCard";
 import type { ValidationReport } from "@/lib/types";
 
 export default function Home() {
@@ -23,18 +25,44 @@ export default function Home() {
       </section>
 
       {report && (
-        <section className="mt-8 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-2 text-xl font-semibold text-gray-900">
-            ValidationReport (raw — T16 renders this nicely)
-          </h2>
-          <p className="mb-4 text-sm text-gray-600">
-            {report.summary
-              ? `Verdict: ${report.summary.verdict} · ${report.summary.pass_count} pass, ${report.summary.warn_count} warn, ${report.summary.fail_count} fail`
-              : "Response received."}
-          </p>
-          <pre className="max-h-[60vh] overflow-auto rounded bg-gray-50 p-4 text-xs leading-5 text-gray-800">
-            {JSON.stringify(report, null, 2)}
-          </pre>
+        <section className="mt-8 space-y-4">
+          {report.summary && <VerdictBanner summary={report.summary} />}
+
+          {report.journal && (
+            <p className="text-sm text-gray-600">
+              Validating against{" "}
+              <strong className="text-gray-900">{report.journal.name}</strong>
+              {report.journal.required_reference_style && (
+                <>
+                  {" · required reference style: "}
+                  <strong className="text-gray-900">
+                    {report.journal.required_reference_style}
+                  </strong>
+                </>
+              )}
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {(report.categories ?? []).map((c) => (
+              <CategoryCard key={c.id} category={c} />
+            ))}
+          </div>
+
+          {(!report.categories || report.categories.length === 0) && (
+            <p className="text-sm text-gray-500">
+              No categories returned. Raw response:
+            </p>
+          )}
+
+          <details className="mt-6">
+            <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+              Show raw JSON
+            </summary>
+            <pre className="mt-2 max-h-[40vh] overflow-auto rounded bg-gray-50 p-4 text-xs leading-5 text-gray-800">
+              {JSON.stringify(report, null, 2)}
+            </pre>
+          </details>
         </section>
       )}
     </main>
