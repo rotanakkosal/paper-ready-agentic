@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import {
   Upload,
-  FileText,
   CloudUpload,
+  CloudCheck,
   X,
   AlertCircle,
 } from "lucide-react";
@@ -151,13 +151,13 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
                 }}
                 disabled={status === "loading"}
                 className={
-                  "flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors disabled:cursor-not-allowed " +
+                  "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed px-6 py-8 text-center transition-colors disabled:cursor-not-allowed " +
                   (dragOver
-                    ? "border-foreground/50 bg-accent"
+                    ? "border-primary bg-accent"
                     : "border-border hover:border-foreground/30 hover:bg-accent/50")
                 }
               >
-                <CloudUpload className="h-7 w-7 text-muted-foreground" />
+                <CloudUpload className="h-9 w-9 text-muted-foreground" />
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium text-foreground">
                     Choose a file or drag &amp; drop it here
@@ -166,32 +166,58 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
                     PDF only · up to ~25 MB
                   </p>
                 </div>
-                <span className="mt-1 inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium text-foreground shadow-sm">
+                <span className="mt-1 inline-flex h-8 items-center justify-center rounded-lg border border-input bg-background px-4 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40">
                   Browse File
                 </span>
               </button>
             ) : (
-              <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
-                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / 1024).toFixed(0)} KB
-                  </p>
-                </div>
-                <Button
+              <div className="relative">
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    pickFile(e.dataTransfer.files?.[0] ?? null);
+                  }}
+                  disabled={status === "loading"}
+                  className={
+                    "flex w-full flex-col items-center justify-center gap-2 rounded-2xl border px-6 py-8 text-center transition-colors disabled:cursor-not-allowed " +
+                    (dragOver
+                      ? "border-primary bg-accent"
+                      : "border-primary/35 bg-gradient-to-b from-[#fdf6f8] to-white")
+                  }
+                >
+                  <CloudCheck className="h-9 w-9 text-primary" />
+                  <div className="w-full space-y-1">
+                    <p className="break-all text-sm font-semibold text-foreground">
+                      {file.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(file.size / 1024).toFixed(0)} KB ready to upload
+                    </p>
+                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                      Drop new file or click to replace
+                    </p>
+                  </div>
+                  <span className="mt-1 inline-flex h-8 items-center justify-center rounded-lg border border-input bg-background px-4 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40">
+                    Browse File
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setFile(null)}
                   disabled={status === "loading"}
                   aria-label="Remove file"
+                  className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
             )}
           </div>

@@ -15,8 +15,6 @@ import EvidencePill from "./EvidencePill";
 import type { Category } from "@/lib/types";
 
 type Style = {
-  iconBg: string;
-  iconBorder: string;
   iconColor: string;
   Icon: typeof CheckCircle2;
   badgeVariant: "default" | "secondary" | "destructive" | "outline";
@@ -25,32 +23,24 @@ type Style = {
 
 const STATUS_STYLE: Record<string, Style> = {
   pass: {
-    iconBg: "bg-emerald-50",
-    iconBorder: "border-emerald-500/30",
     iconColor: "text-emerald-600",
     Icon: CheckCircle2,
     badgeVariant: "secondary",
     badgeClass: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
   },
   fail: {
-    iconBg: "bg-rose-50",
-    iconBorder: "border-rose-500/30",
     iconColor: "text-rose-600",
     Icon: XCircle,
     badgeVariant: "secondary",
     badgeClass: "bg-rose-100 text-rose-700 hover:bg-rose-100",
   },
   warn: {
-    iconBg: "bg-amber-50",
-    iconBorder: "border-amber-500/30",
     iconColor: "text-amber-600",
     Icon: AlertTriangle,
     badgeVariant: "secondary",
     badgeClass: "bg-amber-100 text-amber-800 hover:bg-amber-100",
   },
   pending: {
-    iconBg: "bg-muted/40",
-    iconBorder: "border-border",
     iconColor: "text-muted-foreground",
     Icon: CircleDashed,
     badgeVariant: "outline",
@@ -73,11 +63,7 @@ export default function CategoryCard({ category }: Props) {
   return (
     <Card id={`cat-${category.id}`} className="scroll-mt-20">
       <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${s.iconBorder} ${s.iconBg}`}
-        >
-          <Icon className={`h-5 w-5 ${s.iconColor}`} aria-hidden />
-        </div>
+        <Icon className={`h-7 w-7 shrink-0 ${s.iconColor}`} aria-hidden />
         <CardTitle className="flex-1 text-base leading-tight">
           {category.title}
         </CardTitle>

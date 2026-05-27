@@ -5,39 +5,53 @@ import CategoryCard from "./report/CategoryCard";
 import CategoryToc from "./report/CategoryToc";
 import CoverLetterCard from "./report/CoverLetterCard";
 import SubmissionChecklist from "./report/SubmissionChecklist";
-import type { ValidationReport } from "@/lib/types";
+import { resolveChecklistItems, countByStatus } from "@/lib/checklist";
+import type { ValidationReport, ValidationSummary } from "@/lib/types";
 
 type Props = { report: ValidationReport };
 
 /**
- * Renders the full validation report — verdict, submission checklist, sticky
- * TOC, category cards, and cover letter. Shared between the inline view on
- * `/` (legacy) and the dedicated `/report/[id]` page.
+ * Layout: full-width verdict strip on top, then a two-pane grid (lg+) — sticky
+ * SubmissionChecklist on the left, scrolling CategoryToc + per-category cards
+ * + cover letter on the right. Collapses to a single stacked column below lg.
+ *
+ * Verdict counts are recomputed from the same items the SubmissionChecklist
+ * renders (see lib/checklist) so the banner and the list can't disagree.
  */
 export default function ReportView({ report }: Props) {
   const categories = report.categories ?? [];
 
+  const checklistItems = resolveChecklistItems(report);
+  let synthSummary: ValidationSummary | undefined = report.summary;
+  if (report.summary && checklistItems.length > 0) {
+    const c = countByStatus(checklistItems);
+    synthSummary = {
+      ...report.summary,
+      pass_count: c.pass,
+      warn_count: c.warn,
+      fail_count: c.fail,
+    };
+  }
+
   return (
-    <div className="space-y-4">
-      {report.summary && <VerdictBanner summary={report.summary} />}
+    <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col lg:gap-6 lg:space-y-0 lg:min-h-0">
+      {synthSummary && <VerdictBanner summary={synthSummary} />}
 
-      <SubmissionChecklist report={report} />
+      <div className="grid gap-4 lg:grid-cols-5 lg:gap-6 lg:flex-1 lg:min-h-0">
+        <aside className="lg:col-span-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <SubmissionChecklist report={report} />
+        </aside>
 
-      {categories.length > 0 && (
-        <div className="sticky top-0 z-20 -mx-2 border-b border-transparent bg-background/85 px-2 py-2.5 backdrop-blur-md">
-          <CategoryToc categories={categories} />
+        <div className="space-y-3 lg:col-span-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          {categories.length > 0 && <CategoryToc categories={categories} />}
+          {categories.map((c) => (
+            <CategoryCard key={c.id} category={c} />
+          ))}
+          {report.cover_letter && (
+            <CoverLetterCard coverLetter={report.cover_letter} />
+          )}
         </div>
-      )}
-
-      <div className="space-y-3">
-        {categories.map((c) => (
-          <CategoryCard key={c.id} category={c} />
-        ))}
       </div>
-
-      {report.cover_letter && (
-        <CoverLetterCard coverLetter={report.cover_letter} />
-      )}
     </div>
   );
 }

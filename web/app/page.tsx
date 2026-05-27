@@ -89,7 +89,7 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="grid gap-6 md:grid-cols-2 md:items-start">
+        <div className="grid gap-6 md:grid-cols-2">
           <UploadForm
             onStatusChange={onStatusChange}
             onSuccess={onSuccess}

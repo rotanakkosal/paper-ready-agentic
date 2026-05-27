@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  FileText,
-  AlertCircle,
-} from "lucide-react";
+import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -56,9 +51,9 @@ export default function ReportPage() {
   }, [id]);
 
   return (
-    <div className="flex min-h-full flex-col bg-muted/30">
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
-        <div className="mb-6">
+    <div className="flex min-h-full flex-col bg-muted/30 lg:h-screen lg:overflow-hidden">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-8 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
+        <div className="mb-6 lg:shrink-0">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -108,36 +103,26 @@ export default function ReportPage() {
         )}
 
         {state === "ready" && entry && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-50">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">
-                  Manuscript submitted
-                </p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {entry.fileName && (
-                    <>
-                      <FileText className="-mt-0.5 mr-1 inline h-3 w-3" />
-                      <span className="font-medium text-foreground">
-                        {entry.fileName}
-                      </span>
-                      {entry.fileSize ? (
-                        <> · {(entry.fileSize / 1024).toFixed(0)} KB</>
-                      ) : null}
-                      <span> · </span>
-                    </>
-                  )}
-                  <span>validated against </span>
+          <div className="space-y-5 lg:flex lg:flex-1 lg:flex-col lg:gap-5 lg:space-y-0 lg:min-h-0">
+            <p className="truncate text-xs text-muted-foreground lg:shrink-0">
+              {entry.fileName && (
+                <>
+                  <FileText className="-mt-0.5 mr-1 inline h-3 w-3" />
                   <span className="font-medium text-foreground">
-                    {entry.journalName ?? entry.journalId}
+                    {entry.fileName}
                   </span>
-                  <span> · {formatTimeAgo(entry.createdAt)}</span>
-                </p>
-              </div>
-            </div>
+                  {entry.fileSize ? (
+                    <> · {(entry.fileSize / 1024).toFixed(0)} KB</>
+                  ) : null}
+                  <span> · </span>
+                </>
+              )}
+              <span>validated against </span>
+              <span className="font-medium text-foreground">
+                {entry.journalName ?? entry.journalId}
+              </span>
+              <span> · {formatTimeAgo(entry.createdAt)}</span>
+            </p>
 
             <ReportView report={entry.report} />
           </div>

@@ -10,24 +10,21 @@ const VERDICT_LABEL: Record<string, string> = {
 
 const VERDICT_STYLE: Record<
   string,
-  { iconBg: string; iconBorder: string; iconColor: string; Icon: typeof CheckCircle2 }
+  { iconColor: string; titleColor: string; Icon: typeof CheckCircle2 }
 > = {
   pass: {
-    iconBg: "bg-emerald-50",
-    iconBorder: "border-emerald-500/30",
     iconColor: "text-emerald-600",
+    titleColor: "text-emerald-700",
     Icon: CheckCircle2,
   },
   needs_revision: {
-    iconBg: "bg-amber-50",
-    iconBorder: "border-amber-500/30",
     iconColor: "text-amber-600",
+    titleColor: "text-amber-700",
     Icon: AlertTriangle,
   },
   fail: {
-    iconBg: "bg-rose-50",
-    iconBorder: "border-rose-500/30",
     iconColor: "text-rose-600",
+    titleColor: "text-rose-700",
     Icon: XCircle,
   },
 };
@@ -40,51 +37,95 @@ export default function VerdictBanner({ summary }: Props) {
   const label = VERDICT_LABEL[v] ?? summary.verdict;
   const { Icon } = style;
 
+  const pass = summary.pass_count ?? 0;
+  const warn = summary.warn_count ?? 0;
+  const fail = summary.fail_count ?? 0;
+  const total = pass + warn + fail;
+
+  const headline =
+    total === 0
+      ? label
+      : v === "pass"
+        ? `All ${total} requirements met`
+        : v === "fail"
+          ? `${fail} of ${total} failing`
+          : `${warn + fail} of ${total} need attention`;
+
+  const passPct = total ? (pass / total) * 100 : 0;
+  const warnPct = total ? (warn / total) * 100 : 0;
+  const failPct = total ? (fail / total) * 100 : 0;
+
   return (
     <Card>
-      <CardContent className="flex items-center gap-4 py-5">
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border ${style.iconBorder} ${style.iconBg}`}
-        >
-          <Icon className={`h-6 w-6 ${style.iconColor}`} aria-hidden />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Verdict
-          </p>
-          <h2 className="text-xl font-bold leading-tight text-foreground">
-            {label}
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span className="font-semibold text-emerald-700">
-                {summary.pass_count}
-              </span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                pass
-              </span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <span className="font-semibold text-amber-700">
-                {summary.warn_count}
-              </span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                warn
-              </span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <XCircle className="h-4 w-4 text-rose-600" />
-              <span className="font-semibold text-rose-700">
-                {summary.fail_count}
-              </span>
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                fail
-              </span>
-            </span>
+      <CardContent className="flex flex-col gap-3 px-5 py-3 md:flex-row md:items-center md:gap-5">
+        <div className="flex items-center gap-3 md:shrink-0">
+          <Icon
+            className={`h-7 w-7 shrink-0 ${style.iconColor}`}
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <h2
+              className={`text-base font-bold leading-tight ${style.titleColor}`}
+            >
+              {label}
+            </h2>
+            {total > 0 && (
+              <p className="text-xs text-muted-foreground">{headline}</p>
+            )}
           </div>
         </div>
+
+        {total > 0 && (
+          <>
+            <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              {failPct > 0 && (
+                <div
+                  className="h-full bg-rose-500"
+                  style={{ width: `${failPct}%` }}
+                  aria-label={`${fail} failing`}
+                />
+              )}
+              {warnPct > 0 && (
+                <div
+                  className="h-full bg-amber-500"
+                  style={{ width: `${warnPct}%` }}
+                  aria-label={`${warn} warnings`}
+                />
+              )}
+              {passPct > 0 && (
+                <div
+                  className="h-full bg-emerald-500"
+                  style={{ width: `${passPct}%` }}
+                  aria-label={`${pass} passing`}
+                />
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] md:shrink-0">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                <span className="font-semibold text-foreground">{fail}</span>
+                <span className="uppercase tracking-wider text-muted-foreground">
+                  fail
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="font-semibold text-foreground">{warn}</span>
+                <span className="uppercase tracking-wider text-muted-foreground">
+                  warn
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="font-semibold text-foreground">{pass}</span>
+                <span className="uppercase tracking-wider text-muted-foreground">
+                  pass
+                </span>
+              </span>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
