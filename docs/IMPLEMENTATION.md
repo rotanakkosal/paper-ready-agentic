@@ -75,7 +75,7 @@ Tasks are labelled `[T#]` with rough estimates. Dependencies are explicit so wor
 | T16 | Render `ValidationReport` (checklist + missing items + citations) | 2h | T12, T14 | ✅ |
 | T17 | End-to-end test with 1 real manuscript on tpami | 1h | T11, T16 | ✅ |
 | T18 | End-to-end test with same manuscript on ivc (style mismatch) | 30m | T17 | ✅ |
-| T19 | Bug-bash + polish (loading states, error UI) | 1.5h | T17 |
+| T19 | Bug-bash + polish (loading states, error UI) | 1.5h | T17 | ✅ |
 | T20 | Submission docs: update README "Running locally", record demo | 1.5h | T19 |
 | T21 | **Stretch:** eval harness with 10 Qs (see [design/eval.md](design/eval.md)) | 2h | T17 |
 | T22 | **Stretch:** cover-letter workflow | 2h | T17 |

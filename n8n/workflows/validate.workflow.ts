@@ -175,6 +175,7 @@ Rules:
   - Cite qdrant_search hits by {page, chunk_index_on_page} in evidence_from_guideline.
   - Never fabricate citations. If qdrant_search returns nothing on a topic, write
     "guideline silent on this" and use status "warn".
+  - After the 5 categories, also draft a \`cover_letter\` string the author can use as a starting point. 150–250 words, plain text with \\n line breaks (no markdown). Address 'Dear Editor-in-Chief,' if no editor name is available in journal metadata. Mention the manuscript title, briefly state the contribution drawn from the abstract, justify the fit using the journal's scope (one or two sentences), close with 'Sincerely,\\nThe authors'. The cover letter is a separate top-level field, not a category.
   - Output ONLY the ValidationReport JSON. No prose, no markdown fences.
 
 ValidationReport JSON shape:
@@ -193,7 +194,8 @@ ValidationReport JSON shape:
       ],
       "items": [ { "label": "...", "status": "...", "detail": "..." } ]
     }
-  ]
+  ],
+  "cover_letter": "Dear Editor-in-Chief,\\n\\n... (150–250 words) ...\\n\\nSincerely,\\nThe authors"
 }`;
 
 const VALIDATOR_USER_PROMPT = `=Validate the manuscript below against the target journal.
@@ -204,7 +206,7 @@ MANUSCRIPT:
 TARGET JOURNAL:
 {{ JSON.stringify($json.journal, null, 2) }}
 
-Call your tools (qdrant_search, get_reference_rules, crossref_verify_doi, doaj_lookup) to gather evidence, then produce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only.`;
+Call your tools (qdrant_search, get_reference_rules, crossref_verify_doi, doaj_lookup) to gather evidence, then produce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only. Also produce a cover_letter draft per the schema.`;
 
 const QDRANT_TOOL_DESCRIPTION = `Semantic search over the target journal's official author guideline (the manuscript's destination journal). Input is a natural-language query like "title page requirements" or "conflict of interest statement". Returns the top-5 most relevant passages, each with its page number and chunk_index_on_page. Use this for any question about the journal's format requirements.`;
 

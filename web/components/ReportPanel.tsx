@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import VerdictBanner from "./report/VerdictBanner";
 import CategoryCard from "./report/CategoryCard";
+import CoverLetterCard from "./report/CoverLetterCard";
 import type { ValidationReport } from "@/lib/types";
 import type { Status } from "./UploadForm";
 
@@ -48,6 +49,10 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
             <CategoryCard key={c.id} category={c} />
           ))}
         </div>
+
+        {report.cover_letter && (
+          <CoverLetterCard coverLetter={report.cover_letter} />
+        )}
 
         <details className="px-1 pt-2">
           <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">

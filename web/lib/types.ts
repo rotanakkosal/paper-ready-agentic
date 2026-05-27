@@ -57,6 +57,12 @@ export type ValidationReport = {
   };
   summary?: ValidationSummary;
   categories?: Category[];
+  /**
+   * Optional 150–250 word draft cover letter the agent produces alongside the
+   * validation. Plain text with \n line breaks. Absent on older reports
+   * generated before the cover-letter prompt extension.
+   */
+  cover_letter?: string;
 };
 
 export type ApiError = { error: string };

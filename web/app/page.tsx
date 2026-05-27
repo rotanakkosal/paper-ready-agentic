@@ -52,10 +52,10 @@ export default function Home() {
     <div className="flex min-h-full flex-col bg-muted/30">
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         <header className="mb-8">
-          <Badge variant="outline" className="mb-3 gap-1.5">
+          {/* <Badge variant="outline" className="mb-3 gap-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Agentic RAG · pre-submission validator
-          </Badge>
+          </Badge> */}
           <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             PaperReady
           </h1>
