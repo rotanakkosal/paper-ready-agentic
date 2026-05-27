@@ -21,6 +21,17 @@ You don't need to source any data yourself. The repo ships with everything requi
 - `ingest/data/sample_manuscript.pdf` (a Vision Transformer paper to validate against)
 - `n8n/workflows/validate.json` (the agent workflow, ready to import)
 
+### Supported journals
+
+The dropdown lists all 58 entries from `journal_metadata.csv`, but only two journals ship with their author guidelines ingested into Qdrant. These are the two that work end-to-end out of the box:
+
+| journal_id | Name | Publisher | Reference style |
+|---|---|---|---|
+| `tpami` | IEEE Transactions on Pattern Analysis and Machine Intelligence | IEEE | IEEE |
+| `ivc` | Image and Vision Computing | Elsevier | Elsevier-Vancouver |
+
+Picking any other journal will still run, but the agent will retrieve zero guideline chunks for it. See [Adding another journal](#adding-another-journal) below to ingest more.
+
 ### Prerequisites
 
 1. **Docker Desktop** for Qdrant and n8n
@@ -77,11 +88,21 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>, pick **TPAMI** in the dropdown, drag `ingest/data/sample_manuscript.pdf` onto the form, and click **Validate**. About 25 seconds later the report appears.
+Open <http://localhost:3000>, pick a target journal in the dropdown, drag a manuscript PDF onto the form, and click **Validate**. About 25 seconds later the report appears. The bundled `ingest/data/sample_manuscript.pdf` (a Vision Transformer paper) is a good first test.
 
 ### Free-tier rate limits
 
 Each validation calls Gemini roughly 7 to 10 times (one initial round, one per tool call, one final synthesis). The free tier caps at 20 chat-model requests per minute, so back-to-back runs from the same key get throttled. For demo use, space validations about 90 seconds apart.
+
+### Adding another journal
+
+1. If the journal is not already in `ingest/out/journal_metadata.csv`, add a row. The minimum useful columns are `journal_id, name, publisher, required_reference_style, issn`.
+2. Save the author-guide PDF at `ingest/data/<journal_id>_author_guide.pdf`.
+3. Embed it into Qdrant:
+   ```powershell
+   uv run --directory ingest python ingest_guideline.py --journal-id <journal_id> --pdf data/<journal_id>_author_guide.pdf
+   ```
+4. Refresh the frontend. The new journal is now selectable and fully supported by the agent.
 
 ## Architecture
 
