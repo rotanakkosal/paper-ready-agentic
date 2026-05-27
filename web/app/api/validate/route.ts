@@ -40,6 +40,25 @@ export async function POST(req: Request) {
   }
 
   // n8n returns application/json after T12's Clean Output node parses + unwraps.
-  const data = await upstream.json();
-  return Response.json(data);
+  // But: if the agent crashes mid-run (e.g. Gemini free-tier 429/503), n8n
+  // completes the webhook with HTTP 200 + empty body. Surface that as a useful
+  // error instead of letting JSON.parse explode on the client.
+  const text = await upstream.text();
+  if (!text.trim()) {
+    return Response.json(
+      {
+        error:
+          "n8n returned an empty response. The Validator Agent likely hit the Gemini free-tier rate limit (20 chat requests/minute). Wait ~90 seconds and retry.",
+      },
+      { status: 502 },
+    );
+  }
+  try {
+    return Response.json(JSON.parse(text));
+  } catch {
+    return Response.json(
+      { error: `n8n returned non-JSON: ${text.slice(0, 300)}` },
+      { status: 502 },
+    );
+  }
 }

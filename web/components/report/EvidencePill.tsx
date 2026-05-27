@@ -1,3 +1,4 @@
+import { BookMarked } from "lucide-react";
 import type { EvidenceFromGuideline } from "@/lib/types";
 
 type Props = { evidence: EvidenceFromGuideline };
@@ -8,13 +9,14 @@ export default function EvidencePill({ evidence }: Props) {
     excerpt.length > 280 ? excerpt.slice(0, 280).trimEnd() + "…" : excerpt;
 
   return (
-    <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-      <div className="text-xs font-medium text-gray-500">
+    <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <BookMarked className="h-3 w-3" />
         Guideline · p.{page} §{chunk_index_on_page}
       </div>
-      <div className="mt-1 whitespace-pre-line italic leading-relaxed text-gray-700">
+      <p className="whitespace-pre-line italic leading-relaxed text-foreground/80">
         “{trimmed}”
-      </div>
+      </p>
     </div>
   );
 }

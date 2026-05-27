@@ -1,28 +1,45 @@
-import type { Category } from "@/lib/types";
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  CircleDashed,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import EvidencePill from "./EvidencePill";
+import type { Category } from "@/lib/types";
 
-type Style = { border: string; badge: string; icon: string };
+type Style = {
+  border: string;
+  iconColor: string;
+  Icon: typeof CheckCircle2;
+  badgeVariant: "default" | "secondary" | "destructive" | "outline";
+};
 
 const STATUS_STYLE: Record<string, Style> = {
   pass: {
-    border: "border-emerald-500",
-    badge: "bg-emerald-100 text-emerald-800",
-    icon: "✓",
+    border: "border-l-emerald-500",
+    iconColor: "text-emerald-600",
+    Icon: CheckCircle2,
+    badgeVariant: "secondary",
   },
   fail: {
-    border: "border-rose-500",
-    badge: "bg-rose-100 text-rose-800",
-    icon: "✗",
+    border: "border-l-rose-500",
+    iconColor: "text-rose-600",
+    Icon: XCircle,
+    badgeVariant: "destructive",
   },
   warn: {
-    border: "border-amber-500",
-    badge: "bg-amber-100 text-amber-800",
-    icon: "⚠",
+    border: "border-l-amber-500",
+    iconColor: "text-amber-600",
+    Icon: AlertTriangle,
+    badgeVariant: "secondary",
   },
   pending: {
-    border: "border-gray-400",
-    badge: "bg-gray-100 text-gray-700",
-    icon: "⏳",
+    border: "border-l-muted-foreground",
+    iconColor: "text-muted-foreground",
+    Icon: CircleDashed,
+    badgeVariant: "outline",
   },
 };
 
@@ -34,36 +51,33 @@ type Props = { category: Category };
 
 export default function CategoryCard({ category }: Props) {
   const s = styleFor(category.status);
+  const { Icon } = s;
   const evidence = category.evidence_from_guideline ?? [];
   const items = category.items ?? [];
 
   return (
-    <article
-      className={`rounded-lg border-l-4 bg-white shadow-sm ${s.border}`}
-    >
-      <div className="p-5">
-        <header className="flex items-start justify-between gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">
-            <span className="mr-2" aria-hidden="true">
-              {s.icon}
-            </span>
-            {category.title}
-          </h3>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${s.badge}`}
-          >
+    <Card className={`border-l-4 ${s.border}`}>
+      <CardContent className="space-y-3 py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${s.iconColor}`} />
+            <h3 className="text-base font-semibold text-foreground">
+              {category.title}
+            </h3>
+          </div>
+          <Badge variant={s.badgeVariant} className="shrink-0 uppercase">
             {category.status}
-          </span>
-        </header>
+          </Badge>
+        </div>
 
         {category.explanation && (
-          <p className="mt-2 text-sm leading-relaxed text-gray-700">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {category.explanation}
           </p>
         )}
 
         {evidence.length > 0 && (
-          <div className="mt-3 space-y-2">
+          <div className="space-y-2">
             {evidence.map((e, i) => (
               <EvidencePill key={i} evidence={e} />
             ))}
@@ -71,20 +85,23 @@ export default function CategoryCard({ category }: Props) {
         )}
 
         {items.length > 0 && (
-          <ul className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+          <ul className="space-y-2 border-t border-border pt-3">
             {items.map((it, i) => {
               const its = styleFor(it.status);
+              const ItemIcon = its.Icon;
               return (
                 <li key={i} className="flex items-start gap-2 text-sm">
-                  <span
-                    className={`mt-0.5 inline-block shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${its.badge}`}
-                  >
-                    {it.status}
-                  </span>
-                  <div>
-                    <div className="font-medium text-gray-800">{it.label}</div>
+                  <ItemIcon
+                    className={`mt-0.5 h-4 w-4 shrink-0 ${its.iconColor}`}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">
+                      {it.label}
+                    </div>
                     {it.detail && (
-                      <p className="mt-0.5 text-gray-600">{it.detail}</p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        {it.detail}
+                      </p>
                     )}
                   </div>
                 </li>
@@ -92,7 +109,7 @@ export default function CategoryCard({ category }: Props) {
             })}
           </ul>
         )}
-      </div>
-    </article>
+      </CardContent>
+    </Card>
   );
 }

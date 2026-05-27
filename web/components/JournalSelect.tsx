@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Journal, JournalListResponse } from "@/lib/types";
 
 type Props = {
@@ -40,30 +47,44 @@ export default function JournalSelect({ value, onChange, disabled }: Props) {
   }, []);
 
   if (state === "loading") {
-    return <div className="text-sm text-gray-500">Loading journals…</div>;
+    return (
+      <p className="text-sm text-muted-foreground">Loading journals…</p>
+    );
   }
   if (state === "error") {
     return (
-      <div className="text-sm text-rose-700">
+      <p className="text-sm text-destructive">
         Could not load journals: {errorMessage ?? "unknown error"}
-      </div>
+      </p>
     );
   }
 
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
+    <Select
+      value={value || undefined}
+      onValueChange={onChange}
       disabled={disabled}
-      className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:bg-gray-100"
     >
-      <option value="">— Select a journal —</option>
-      {journals.map((j) => (
-        <option key={j.journal_id} value={j.journal_id}>
-          {j.name}
-          {j.required_reference_style ? ` (${j.required_reference_style})` : ""}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="Select a journal" />
+      </SelectTrigger>
+      <SelectContent>
+        {journals.map((j) => (
+          <SelectItem
+            key={j.journal_id}
+            value={j.journal_id}
+            className="py-2.5 pl-3 pr-9"
+          >
+            {j.name}
+            {j.required_reference_style ? (
+              <span className="text-muted-foreground">
+                {" "}
+                · {j.required_reference_style}
+              </span>
+            ) : null}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

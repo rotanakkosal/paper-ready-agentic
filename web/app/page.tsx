@@ -1,70 +1,119 @@
 "use client";
 
-import { useState } from "react";
-import UploadForm from "@/components/UploadForm";
-import VerdictBanner from "@/components/report/VerdictBanner";
-import CategoryCard from "@/components/report/CategoryCard";
+import { useState, useCallback } from "react";
+import { Library, FileUp, ListChecks } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import UploadForm, { type Status } from "@/components/UploadForm";
+import ReportPanel from "@/components/ReportPanel";
 import type { ValidationReport } from "@/lib/types";
+
+const HOW_IT_WORKS = [
+  {
+    n: 1,
+    Icon: Library,
+    title: "Pick a journal",
+    body: "58 indexed CS / AI / Vision / NLP journals each with its author guidelines pre-parsed into a vector index.",
+  },
+  {
+    n: 2,
+    Icon: FileUp,
+    title: "Upload your manuscript",
+    body: "PDF parsed inside an n8n workflow: title, authors, ORCIDs, abstract, references, declarations.",
+  },
+  {
+    n: 3,
+    Icon: ListChecks,
+    title: "Read the report",
+    body: "An LLM agent compares your manuscript against the journal's rules and cites the page numbers it used.",
+  },
+];
 
 export default function Home() {
   const [report, setReport] = useState<ValidationReport | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const onStatusChange = useCallback(
+    (next: Status, msg?: string | null) => {
+      setStatus(next);
+      setErrorMessage(msg ?? null);
+    },
+    [],
+  );
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold text-gray-900">PaperReady</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Check your manuscript against journal-specific submission rules
-          before you submit. Pick the target journal, upload the PDF, get a
-          checklist back.
-        </p>
-      </header>
+    <div className="flex min-h-full flex-col bg-muted/30">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+        <header className="mb-8">
+          <Badge variant="outline" className="mb-3 gap-1.5">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Agentic RAG · pre-submission validator
+          </Badge>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            PaperReady
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            Catch desk-rejection issues before you submit. Pick the target
+            journal, upload your manuscript, get a journal-specific compliance
+            checklist with citations back to the official author guidelines.
+          </p>
+        </header>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <UploadForm onReport={setReport} />
-      </section>
+        <div className="grid gap-6 md:grid-cols-2">
+          <UploadForm onReport={setReport} onStatusChange={onStatusChange} />
+          <ReportPanel
+            status={status}
+            report={report}
+            errorMessage={errorMessage}
+          />
+        </div>
 
-      {report && (
-        <section className="mt-8 space-y-4">
-          {report.summary && <VerdictBanner summary={report.summary} />}
+        {status === "idle" && (
+          <section className="mt-10">
+            <h2 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              How it works
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {HOW_IT_WORKS.map((step) => (
+                <Card key={step.n}>
+                  <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+                      <step.Icon className="h-4 w-4 text-foreground" />
+                    </div>
+                    <CardTitle className="text-sm leading-none">
+                      {step.n}. {step.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-xs leading-relaxed">
+                      {step.body}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
 
-          {report.journal && (
-            <p className="text-sm text-gray-600">
-              Validating against{" "}
-              <strong className="text-gray-900">{report.journal.name}</strong>
-              {report.journal.required_reference_style && (
-                <>
-                  {" · required reference style: "}
-                  <strong className="text-gray-900">
-                    {report.journal.required_reference_style}
-                  </strong>
-                </>
-              )}
-            </p>
-          )}
-
-          <div className="space-y-3">
-            {(report.categories ?? []).map((c) => (
-              <CategoryCard key={c.id} category={c} />
-            ))}
-          </div>
-
-          {(!report.categories || report.categories.length === 0) && (
-            <p className="text-sm text-gray-500">
-              No categories returned. Raw response:
-            </p>
-          )}
-
-          <details className="mt-6">
-            <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
-              Show raw JSON
-            </summary>
-            <pre className="mt-2 max-h-[40vh] overflow-auto rounded bg-gray-50 p-4 text-xs leading-5 text-gray-800">
-              {JSON.stringify(report, null, 2)}
-            </pre>
-          </details>
-        </section>
-      )}
-    </main>
+      <footer className="border-t border-border bg-card">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs text-muted-foreground">
+          <span>
+            PaperReady · Midterm project, Big Data Analysis (8862016-01), Spring
+            2026
+          </span>
+          <span className="text-muted-foreground/70">
+            n8n · Gemini 2.5 Flash · Qdrant · Crossref · DOAJ
+          </span>
+        </div>
+      </footer>
+    </div>
   );
 }

@@ -35,7 +35,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Manuscript parser — runs inside the n8n \"Code\" node of the validate workflow.\n//\n// Input:  $input.first().json from the upstream \"Extract from File\" node\n//           - .text       full extracted PDF text\n//           - .numpages   page count\n//         $('Webhook').first().json.body.journal_id\n//\n// Output: a single item whose json is { journal_id, manuscript: ParsedManuscript }\n//         The ParsedManuscript shape matches docs/design/n8n-validate-workflow.md.\n//\n// Parsing is intentionally heuristic — the agent reasons over these fields\n// with retrieved guideline context, so the parser only needs to surface\n// structure, not be authoritative.\n\nconst inputJson = $input.first().json;\nconst text = (inputJson.text || '').toString();\nconst pageCount = inputJson.numpages || 0;\nconst journalId = $('Webhook').first().json.body?.journal_id || null;\n\n// --- Title: first long-ish line in the first ~1500 chars (above the abstract) ---\nconst firstChunk = text.slice(0, 1500);\nconst firstLines = firstChunk.split('\\n').map(l => l.trim()).filter(Boolean);\nconst title = firstLines.find(l => l.length > 20 && !/^abstract\\b/i.test(l)) || null;\n\n// --- ORCIDs ---\nconst orcidRe = /\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]/g;\nconst orcids = text.match(orcidRe) || [];\n\n// --- Abstract: text between \"Abstract\" and the next major heading ---\nconst absMatch = text.match(/Abstract[\\s\\-:.]+([\\s\\S]{50,2500}?)(?=Keywords|Introduction|1\\.\\s|I\\.\\s|\\n\\n\\n)/i);\nconst abstract = absMatch ? absMatch[1].trim() : null;\n\n// --- Sections: capitalised heading-like lines ---\nconst sectionRe = /^(?:\\d+\\.?\\s+)?([A-Z][A-Za-z ]{3,40})$/gm;\nconst sectionsSet = new Set();\nlet mSec;\nwhile ((mSec = sectionRe.exec(text)) !== null) sectionsSet.add(mSec[1].trim());\nconst sections_detected = Array.from(sectionsSet);\n\n// --- Declarations: simple substring probes ---\nconst lower = text.toLowerCase();\nconst declarations = {\n  conflict_of_interest: /conflict[s]? of interest|competing interest/.test(lower) ? 'found' : 'missing',\n  funding: /\\bfunding\\b|funded by|\\bgrant\\b/.test(lower) ? 'found' : 'missing',\n  data_availability: /data availability|data sharing/.test(lower) ? 'found' : 'missing',\n  ethics: /ethics statement|ethical (review|approval)|irb approval/.test(lower) ? 'found' : 'missing'\n};\n\n// --- References + DOIs ---\nconst doiRe = /10\\.\\d{4,9}\\/[-._;()\\/:A-Z0-9]+/gi;\nconst refsIdx = text.search(/\\bReferences\\b/i);\nlet refsBlock = refsIdx >= 0 ? text.slice(refsIdx).replace(/^References[\\s\\S]{0,10}/i, '') : '';\nconst rawRefs = refsBlock\n  .split(/\\n\\s*(?:\\[\\d+\\]|\\d+\\.)\\s+/)\n  .map(s => s.trim())\n  .filter(s => s.length > 20)\n  .slice(0, 100);\nconst references = rawRefs.map(raw => {\n  const dm = raw.match(doiRe);\n  return { raw: raw.slice(0, 300), doi: dm ? dm[0] : null };\n});\nconst allDois = text.match(doiRe) || [];\n\nreturn [{\n  json: {\n    journal_id: journalId,\n    manuscript: {\n      title,\n      orcids_found: orcids,\n      abstract,\n      sections_detected,\n      declarations,\n      references,\n      stats: {\n        page_count: pageCount,\n        reference_count: references.length,\n        doi_count: allDois.length,\n        orcid_count: orcids.length\n      }\n    }\n  }\n}];\n"
+        "jsCode": "// Manuscript parser — runs inside the n8n \"Code\" node of the validate workflow.\n//\n// Input:  $input.first().json from the upstream \"Extract from File\" node\n//           - .text       full extracted PDF text\n//           - .numpages   page count\n//         $('Webhook').first().json.body.journal_id\n//\n// Output: a single item whose json is { journal_id, manuscript: ParsedManuscript }\n//         The ParsedManuscript shape matches docs/design/n8n-validate-workflow.md.\n//\n// Parsing is intentionally heuristic — the agent reasons over these fields\n// with retrieved guideline context, so the parser only needs to surface\n// structure, not be authoritative.\n\nconst inputJson = $input.first().json;\nconst text = (inputJson.text || '').toString();\nconst pageCount = inputJson.numpages || 0;\nconst journalId = $('Webhook').first().json.body?.journal_id || null;\n\n// --- Title: first long-ish line in the first ~1500 chars (above the abstract) ---\n// Skip common running headers from preprint servers and conference banners so\n// we don't classify the boilerplate as the title (e.g. ViT's \"Published as a\n// conference paper at ICLR 2021\" appears on line 1, above the real title).\nconst SKIP_HEADER_PATTERNS = [\n  /^abstract\\b/i,\n  /^published\\s+as/i,\n  /^preprint\\b/i,\n  /^under\\s+review/i,\n  /^arxiv:/i,\n  /^manuscript\\s+received/i,\n  /^\\d{4}\\s+ieee/i,\n  /^©\\s*\\d{4}/i,\n];\nconst firstChunk = text.slice(0, 1500);\nconst firstLines = firstChunk.split('\\n').map(l => l.trim()).filter(Boolean);\nconst title = firstLines.find(l =>\n  l.length > 20 && !SKIP_HEADER_PATTERNS.some(p => p.test(l))\n) || null;\n\n// --- ORCIDs ---\nconst orcidRe = /\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]/g;\nconst orcids = text.match(orcidRe) || [];\n\n// --- Abstract: text between \"Abstract\" and the next major heading ---\nconst absMatch = text.match(/Abstract[\\s\\-:.]+([\\s\\S]{50,2500}?)(?=Keywords|Introduction|1\\.\\s|I\\.\\s|\\n\\n\\n)/i);\nconst abstract = absMatch ? absMatch[1].trim() : null;\n\n// --- Sections: capitalised heading-like lines ---\nconst sectionRe = /^(?:\\d+\\.?\\s+)?([A-Z][A-Za-z ]{3,40})$/gm;\nconst sectionsSet = new Set();\nlet mSec;\nwhile ((mSec = sectionRe.exec(text)) !== null) sectionsSet.add(mSec[1].trim());\nconst sections_detected = Array.from(sectionsSet);\n\n// --- Declarations: simple substring probes ---\nconst lower = text.toLowerCase();\nconst declarations = {\n  conflict_of_interest: /conflict[s]? of interest|competing interest/.test(lower) ? 'found' : 'missing',\n  funding: /\\bfunding\\b|funded by|\\bgrant\\b/.test(lower) ? 'found' : 'missing',\n  data_availability: /data availability|data sharing/.test(lower) ? 'found' : 'missing',\n  ethics: /ethics statement|ethical (review|approval)|irb approval/.test(lower) ? 'found' : 'missing'\n};\n\n// --- References + DOIs ---\n// DOI shape: 10.NNNN/<rest>. We require at least one slash + 3 chars after it\n// so truncated fragments like \"10.1\" don't get classified as DOIs and fed\n// to crossref_verify_doi (which would 404 and crash the agent).\nconst doiRe = /10\\.\\d{4,9}\\/[-._;()\\/:A-Z0-9]{3,}/gi;\nfunction normalizeDoi(d) {\n  // Strip trailing punctuation that often leaks in from reference text\n  return d.replace(/[.,;)\\]>]+$/, '');\n}\nconst refsIdx = text.search(/\\bReferences\\b/i);\nlet refsBlock = refsIdx >= 0 ? text.slice(refsIdx).replace(/^References[\\s\\S]{0,10}/i, '') : '';\nconst rawRefs = refsBlock\n  .split(/\\n\\s*(?:\\[\\d+\\]|\\d+\\.)\\s+/)\n  .map(s => s.trim())\n  .filter(s => s.length > 20)\n  .slice(0, 100);\nconst references = rawRefs.map(raw => {\n  const dm = raw.match(doiRe);\n  return { raw: raw.slice(0, 500), doi: dm ? normalizeDoi(dm[0]) : null };\n});\nconst allDois = (text.match(doiRe) || []).map(normalizeDoi);\n\nreturn [{\n  json: {\n    journal_id: journalId,\n    manuscript: {\n      title,\n      orcids_found: orcids,\n      abstract,\n      sections_detected,\n      declarations,\n      references,\n      stats: {\n        page_count: pageCount,\n        reference_count: references.length,\n        doi_count: allDois.length,\n        orcid_count: orcids.length\n      }\n    }\n  }\n}];\n"
       },
       "id": "efa5dd33-ad69-4b7f-b014-76bb97aa6e93",
       "name": "Parse Manuscript",
@@ -165,7 +165,13 @@
         "toolDescription": "Get all formatting rules for a reference style. Valid style_name values: \"APA 7\", \"IEEE\", \"Vancouver\", \"Harvard\", \"Chicago\". Call once with the journal's required_reference_style.",
         "method": "GET",
         "url": "=http://host.docker.internal:8000/reference-rules/{{ encodeURIComponent($fromAI('style_name', 'Reference style name. One of: APA 7, IEEE, Vancouver, Harvard, Chicago.', 'string')) }}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "5e9afe60-a12b-405e-a2ac-2646a472d866",
       "name": "get_reference_rules",
@@ -191,7 +197,13 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "bd6d0752-4a0d-4362-aabf-3ce540df11d4",
       "name": "crossref_verify_doi",
@@ -207,7 +219,13 @@
         "toolDescription": "Look up a journal in DOAJ (Directory of Open Access Journals) by ISSN. Input is an ISSN like \"1939-3539\". Non-empty results signal OA legitimacy. Empty results do NOT mean illegitimate — many reputable journals are not OA.",
         "method": "GET",
         "url": "=https://doaj.org/api/search/journals/issn:{{ $fromAI('issn', 'An ISSN such as 1939-3539.', 'string') }}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
       "id": "a5951976-834c-435e-8bf0-bc1bd63c0a45",
       "name": "doaj_lookup",

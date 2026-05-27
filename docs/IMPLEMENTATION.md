@@ -72,9 +72,9 @@ Tasks are labelled `[T#]` with rough estimates. Dependencies are explicit so wor
 | T13 | Scaffold Next.js app (App Router, Tailwind, shadcn optional) | 45m | — | ✅ |
 | T14 | Build upload page (journal dropdown + file input + submit) | 1.5h | T13 | ✅ |
 | T15 | Build Next.js `/api/validate` proxy route (handles secret) | 30m | T7, T13 | ✅ |
-| T16 | Render `ValidationReport` (checklist + missing items + citations) | 2h | T12, T14 |
-| T17 | End-to-end test with 1 real manuscript on tpami | 1h | T11, T16 |
-| T18 | End-to-end test with same manuscript on ivc (style mismatch) | 30m | T17 |
+| T16 | Render `ValidationReport` (checklist + missing items + citations) | 2h | T12, T14 | ✅ |
+| T17 | End-to-end test with 1 real manuscript on tpami | 1h | T11, T16 | ✅ |
+| T18 | End-to-end test with same manuscript on ivc (style mismatch) | 30m | T17 | ✅ |
 | T19 | Bug-bash + polish (loading states, error UI) | 1.5h | T17 |
 | T20 | Submission docs: update README "Running locally", record demo | 1.5h | T19 |
 | T21 | **Stretch:** eval harness with 10 Qs (see [design/eval.md](design/eval.md)) | 2h | T17 |
