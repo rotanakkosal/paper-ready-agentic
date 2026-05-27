@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         error:
-          "n8n returned an empty response. The Validator Agent likely hit the Gemini free-tier rate limit (20 chat requests/minute). Wait ~90 seconds and retry.",
+          "The agent ran into a Gemini free-tier rate limit before completing. Wait ~60 seconds and try again.",
       },
       { status: 502 },
     );

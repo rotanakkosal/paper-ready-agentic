@@ -10,6 +10,8 @@ import {
   BrainCircuit,
   Sparkles,
   CheckCircle2,
+  Clock,
+  Lightbulb,
 } from "lucide-react";
 import {
   Card,
@@ -34,6 +36,25 @@ const LOADING_STEPS = [
   { icon: Sparkles, label: "Assembling validation report" },
 ];
 
+const ERROR_TIPS = [
+  "Hit the Gemini free-tier rate limit. Wait ~60 s before re-submitting.",
+  "PDF under ~25 MB, not password-protected, text-based (not scanned).",
+  "Target journal must be selected on the left.",
+  "Crossref or Qdrant may be briefly slow. Retry once.",
+];
+
+/**
+ * Parse "wait ~60 seconds" / "60s" style hints out of a rate-limit error
+ * message. Returns the seconds to wait, or null if the error isn't a
+ * rate-limit. Falls back to 60s if rate-limited but no number is mentioned.
+ */
+function parseRateLimitSeconds(msg: string): number | null {
+  if (!/rate.?limit|too many requests|429|free.?tier/i.test(msg)) return null;
+  const m = msg.match(/(\d+)\s*(?:s\b|sec|second)/i);
+  if (m) return Math.max(1, parseInt(m[1], 10));
+  return 60;
+}
+
 type Props = {
   status: Status;
   report: ValidationReport | null;
@@ -55,13 +76,32 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     return () => clearInterval(t);
   }, [status]);
 
+  // Rate-limit countdown: when the error looks like "wait ~60 seconds", start
+  // a per-second ticker so the user knows exactly when they can re-submit.
+  // null when not a rate-limit error.
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (status !== "error" || !errorMessage) {
+      setSecondsLeft(null);
+      return;
+    }
+    setSecondsLeft(parseRateLimitSeconds(errorMessage));
+  }, [status, errorMessage]);
+  useEffect(() => {
+    if (secondsLeft === null || secondsLeft <= 0) return;
+    const t = setTimeout(() => {
+      setSecondsLeft((s) => (s === null ? null : Math.max(0, s - 1)));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [secondsLeft]);
+
   // LOADING — show the stepper inside the report shell
   if (status === "loading") {
     return (
       <Card>
         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-50">
-            <Sparkles className="h-5 w-5 text-amber-600" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-card">
+            <Sparkles className="h-5 w-5 text-foreground" />
           </div>
           <div className="space-y-0.5">
             <CardTitle className="text-base">Validating manuscript</CardTitle>
@@ -139,21 +179,82 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
 
   // ERROR — show the error inside the report shell
   if (status === "error" && errorMessage) {
+    const ready = secondsLeft !== null && secondsLeft <= 0;
     return (
       <Card>
-        <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/5">
             <AlertCircle className="h-5 w-5 text-destructive" />
           </div>
           <div className="space-y-0.5">
-            <CardTitle className="text-base">Validation failed</CardTitle>
+            <CardTitle className="text-base">Validation didn&apos;t complete</CardTitle>
             <CardDescription className="text-xs">
-              The agent didn&apos;t return a report
+              The agent returned an error before producing a report
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-foreground">{errorMessage}</p>
+        <CardContent className="space-y-4">
+          <p className="text-sm leading-relaxed text-destructive">
+            {errorMessage}
+          </p>
+
+          {secondsLeft !== null && (
+            <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3.5 py-3">
+              <Clock
+                className={
+                  "h-5 w-5 shrink-0 " +
+                  (ready ? "text-emerald-600" : "text-muted-foreground")
+                }
+                aria-hidden
+              />
+              <div className="flex-1 min-w-0">
+                <p
+                  className={
+                    "text-sm font-medium " +
+                    (ready ? "text-emerald-700" : "text-foreground")
+                  }
+                >
+                  {ready ? "Ready to retry" : `Try again in ${secondsLeft}s`}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {ready
+                    ? "Re-submit the form on the left."
+                    : "We'll let you know when the wait is over."}
+                </p>
+              </div>
+              {!ready && (
+                <span
+                  className="font-mono text-base font-semibold tabular-nums text-foreground"
+                  aria-live="polite"
+                >
+                  {secondsLeft}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-md border border-border bg-muted/30 px-3.5 py-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Lightbulb className="h-3.5 w-3.5" />
+              Common causes
+            </div>
+            <ul className="space-y-1.5 text-xs leading-relaxed text-foreground/80">
+              {ERROR_TIPS.map((tip, i) => (
+                <li key={i} className="flex gap-2">
+                  <span
+                    className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60"
+                    aria-hidden
+                  />
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            The form on the left still has your selection. Just hit Validate
+            again.
+          </p>
         </CardContent>
       </Card>
     );

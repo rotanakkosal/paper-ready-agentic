@@ -6,6 +6,52 @@ Researchers preparing a paper for journal submission must follow many journal-sp
 
 ![PaperReady UI — submit a manuscript, pick a journal, get a journal-specific compliance report](docs/screenshots/paper-ready-ui.png)
 
+## Running locally
+
+### Prerequisites
+
+- **Docker Desktop** (for Qdrant + n8n)
+- **Node.js 20.9+** (for the Next.js frontend)
+- **uv** (Python package manager) — Python 3.11+
+- A **Google AI Studio API key** — free tier is enough for development. Get one at <https://aistudio.google.com/apikey>.
+- A running **n8n instance**. The repo doesn't bundle n8n's compose file (each developer's n8n setup is their own); the assumed setup is `localhost:5678`. The workflow JSON to import lives at `n8n/workflows/validate.json`.
+
+### Setup
+
+```powershell
+# 1) Qdrant
+docker compose -f infra/docker-compose.yml up -d
+
+# 2) Gemini API key
+cp ingest/.env.example ingest/.env
+# Edit ingest/.env and set GOOGLE_API_KEY=AIza...
+
+# 3) Place author-guideline PDFs into ingest/data/ (e.g. tpami_author_guide.pdf, ivc_author_guide.pdf)
+#    Then ingest each one:
+uv run --directory ingest python ingest_guideline.py --journal-id tpami --pdf data/tpami_author_guide.pdf
+uv run --directory ingest python ingest_guideline.py --journal-id ivc   --pdf data/ivc_author_guide.pdf
+
+# 4) Start the Python sidecar
+uv run --directory sidecar uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 5) Start (or already-have-running) n8n at localhost:5678
+#    - Import n8n/workflows/validate.json
+#    - Create a "Google Gemini(PaLM) Api" credential using GOOGLE_API_KEY
+#    - Attach it to the Gemini Embeddings + Gemini 2.5 Flash subnodes
+#    - Activate / publish the workflow
+
+# 6) Start the frontend
+cd web
+npm install
+npm run dev
+```
+
+Then open <http://localhost:3000>, pick a journal, upload a PDF, click **Validate**.
+
+### Free-tier rate limits
+
+Validations call Gemini 2.5 Flash 7–10 times each (one initial reasoning round, one per tool call, one final synthesis). The **free tier caps at 20 chat-model requests per minute**, so back-to-back validations from the same key will be throttled. For demo use, space validations ~90 seconds apart, or move to a paid tier or a self-hosted LLM endpoint.
+
 ## Architecture
 
 ```
@@ -132,52 +178,6 @@ User picks **TPAMI** in the dropdown, uploads a manuscript PDF, clicks **Validat
   - `legitimacy` — combines DOAJ result + the curated `reputation_flag`
 
 Switching the journal to **IVC** and re-validating the same manuscript produces a **materially different report** — different reference-style rules, different declarations expected — proving the system adapts to journal-specific rules rather than running a one-size-fits-all check.
-
-## Running locally
-
-### Prerequisites
-
-- **Docker Desktop** (for Qdrant + n8n)
-- **Node.js 20.9+** (for the Next.js frontend)
-- **uv** (Python package manager) — Python 3.11+
-- A **Google AI Studio API key** — free tier is enough for development. Get one at <https://aistudio.google.com/apikey>.
-- A running **n8n instance**. The repo doesn't bundle n8n's compose file (each developer's n8n setup is their own); the assumed setup is `localhost:5678`. The workflow JSON to import lives at `n8n/workflows/validate.json`.
-
-### Setup
-
-```powershell
-# 1) Qdrant
-docker compose -f infra/docker-compose.yml up -d
-
-# 2) Gemini API key
-cp ingest/.env.example ingest/.env
-# Edit ingest/.env and set GOOGLE_API_KEY=AIza...
-
-# 3) Place author-guideline PDFs into ingest/data/ (e.g. tpami_author_guide.pdf, ivc_author_guide.pdf)
-#    Then ingest each one:
-uv run --directory ingest python ingest_guideline.py --journal-id tpami --pdf data/tpami_author_guide.pdf
-uv run --directory ingest python ingest_guideline.py --journal-id ivc   --pdf data/ivc_author_guide.pdf
-
-# 4) Start the Python sidecar
-uv run --directory sidecar uvicorn app.main:app --host 127.0.0.1 --port 8000
-
-# 5) Start (or already-have-running) n8n at localhost:5678
-#    - Import n8n/workflows/validate.json
-#    - Create a "Google Gemini(PaLM) Api" credential using GOOGLE_API_KEY
-#    - Attach it to the Gemini Embeddings + Gemini 2.5 Flash subnodes
-#    - Activate / publish the workflow
-
-# 6) Start the frontend
-cd web
-npm install
-npm run dev
-```
-
-Then open <http://localhost:3000>, pick a journal, upload a PDF, click **Validate**.
-
-### Free-tier rate limits
-
-Validations call Gemini 2.5 Flash 7–10 times each (one initial reasoning round, one per tool call, one final synthesis). The **free tier caps at 20 chat-model requests per minute**, so back-to-back validations from the same key will be throttled. For demo use, space validations ~90 seconds apart, or move to a paid tier or a self-hosted LLM endpoint.
 
 ## License
 

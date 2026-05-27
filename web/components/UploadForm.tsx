@@ -1,13 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import {
-  Upload,
-  CloudUpload,
-  CloudCheck,
-  X,
-  AlertCircle,
-} from "lucide-react";
+import { Upload, CloudUpload, CloudCheck, X } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -221,13 +215,6 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
               </div>
             )}
           </div>
-
-          {status === "error" && errorMessage && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
 
           <Button
             type="submit"

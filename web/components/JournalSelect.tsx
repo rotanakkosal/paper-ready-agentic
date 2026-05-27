@@ -66,12 +66,18 @@ export default function JournalSelect({ value, onChange, disabled }: Props) {
 
   return (
     <Select
-      value={value || undefined}
+      value={value || null}
       onValueChange={(v) => onChange(v ?? "")}
       disabled={disabled}
     >
       <SelectTrigger className="w-full">
-        <SelectValue placeholder="Select a journal" />
+        <SelectValue placeholder="Select a journal">
+          {(v) =>
+            v
+              ? (journals.find((j) => j.journal_id === v)?.name ?? v)
+              : "Select a journal"
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {journals.map((j) => (
