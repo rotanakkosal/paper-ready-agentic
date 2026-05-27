@@ -227,24 +227,51 @@ const DOAJ_TOOL_DESCRIPTION = `Look up a journal in DOAJ (Directory of Open Acce
 
 const CLEAN_OUTPUT_JS = `// Clean Output — runs after the Validator Agent, before Respond to Webhook.
 //
-// The Validator Agent emits { output: "\\\`\\\`\\\`json\\n{...ValidationReport...}\\n\\\`\\\`\\\`" }
-// — the report is wrapped in a markdown fenced code block inside a string.
-// This node strips the fences and parses the inner JSON so the webhook
-// responds with a clean ValidationReport object.
+// The Validator Agent normally emits { output: "\\\`\\\`\\\`json\\n{...ValidationReport...}\\n\\\`\\\`\\\`" }
+// — the report wrapped in a markdown fence inside a string. This node
+// unwraps that and responds with a clean ValidationReport object.
+//
+// Also handles two known Gemini Flash-Lite failure modes:
+//   1) The model "leaks" a tool call as plain text instead of issuing a real
+//      function call — recognisable as "Calling <tool> with input: {...}".
+//      We surface a clear, retry-friendly error.
+//   2) The model wraps JSON in extra prose ("Here is the report: ..."). We
+//      slice from the first '{' to the last '}' as a fallback.
 
 const raw = $input.first().json.output;
 
-let parsed;
 if (raw && typeof raw === 'object') {
-  parsed = raw;
-} else {
-  let text = String(raw ?? '').trim();
-  const fenceMatch = text.match(/^\`\`\`(?:json)?\\s*\\n?([\\s\\S]*?)\\n?\`\`\`\\s*$/i);
-  if (fenceMatch) text = fenceMatch[1].trim();
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    return [{ json: { error: 'failed to parse agent output', message: e.message, raw } }];
+  return [{ json: raw }];
+}
+
+let text = String(raw ?? '').trim();
+
+const toolLeak = text.match(/^Calling\\s+(\\w+)\\s+with\\s+input:/i);
+if (toolLeak) {
+  return [{ json: {
+    error: 'The model leaked a tool call as text instead of completing the report. This is a known Gemini Flash-Lite reliability issue on multi-step agent loops. Please re-submit.',
+    leaked_tool: toolLeak[1],
+    raw,
+  } }];
+}
+
+const fenceMatch = text.match(/\`\`\`(?:json)?\\s*\\n?([\\s\\S]*?)\\n?\`\`\`/i);
+if (fenceMatch) text = fenceMatch[1].trim();
+
+let parsed;
+try {
+  parsed = JSON.parse(text);
+} catch (e1) {
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    try {
+      parsed = JSON.parse(text.slice(first, last + 1));
+    } catch (e2) {
+      return [{ json: { error: 'failed to parse agent output', message: e2.message, raw } }];
+    }
+  } else {
+    return [{ json: { error: 'failed to parse agent output (no JSON object found)', raw } }];
   }
 }
 
@@ -431,12 +458,12 @@ const geminiChatModel = languageModel({
   type: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
   version: 1.1,
   config: {
-    name: 'Gemini 2.5 Flash Lite',
+    name: 'Gemini 2.5 Flash',
     parameters: {
-      modelName: 'models/gemini-2.5-flash-lite',
+      modelName: 'models/gemini-2.5-flash',
       options: {
         temperature: 0.2,
-        maxOutputTokens: 4096
+        maxOutputTokens: 16384
       }
     },
     position: [1088, 320]

@@ -92,7 +92,7 @@ Open <http://localhost:3000>, pick a target journal in the dropdown, drag a manu
 
 ### Free-tier rate limits
 
-Each validation calls Gemini roughly 7 to 10 times (one initial round, one per tool call, one final synthesis). The free tier caps at 20 chat-model requests per minute, so back-to-back runs from the same key get throttled. For demo use, space validations about 90 seconds apart.
+Each validation calls Gemini 2.5 Flash roughly 7 to 10 times (one initial round, one per tool call, one final synthesis). The free tier caps at 10 requests per minute on Flash, so back-to-back runs from the same key get throttled. For demo use, space validations about 90 seconds apart.
 
 ### Adding another journal
 

@@ -108,14 +108,14 @@
     },
     {
       "parameters": {
-        "modelName": "models/gemini-2.5-flash-lite",
+        "modelName": "models/gemini-2.5-flash",
         "options": {
           "temperature": 0.2,
-          "maxOutputTokens": 4096
+          "maxOutputTokens": 16384
         }
       },
       "id": "e6ae6852-0e38-40d2-8086-9dea399d1bd6",
-      "name": "Gemini 2.5 Flash Lite",
+      "name": "Gemini 2.5 Flash",
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.1,
       "position": [
@@ -238,7 +238,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Clean Output — runs after the Validator Agent, before Respond to Webhook.\n//\n// The Validator Agent emits { output: \"\\`\\`\\`json\\n{...ValidationReport...}\\n\\`\\`\\`\" }\n// — the report is wrapped in a markdown fenced code block inside a string.\n// This node strips the fences and parses the inner JSON so the webhook\n// responds with a clean ValidationReport object.\n\nconst raw = $input.first().json.output;\n\nlet parsed;\nif (raw && typeof raw === 'object') {\n  parsed = raw;\n} else {\n  let text = String(raw ?? '').trim();\n  const fenceMatch = text.match(/^```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```\\s*$/i);\n  if (fenceMatch) text = fenceMatch[1].trim();\n  try {\n    parsed = JSON.parse(text);\n  } catch (e) {\n    return [{ json: { error: 'failed to parse agent output', message: e.message, raw } }];\n  }\n}\n\nreturn [{ json: parsed }];\n"
+        "jsCode": "// Clean Output — runs after the Validator Agent, before Respond to Webhook.\n//\n// The Validator Agent normally emits { output: \"\\`\\`\\`json\\n{...ValidationReport...}\\n\\`\\`\\`\" }\n// — the report wrapped in a markdown fence inside a string. This node\n// unwraps that and responds with a clean ValidationReport object.\n//\n// Also handles two known Gemini Flash-Lite failure modes:\n//   1) The model \"leaks\" a tool call as plain text instead of issuing a real\n//      function call — recognisable as \"Calling <tool> with input: {...}\".\n//      We surface a clear, retry-friendly error.\n//   2) The model wraps JSON in extra prose (\"Here is the report: ...\"). We\n//      slice from the first '{' to the last '}' as a fallback.\n\nconst raw = $input.first().json.output;\n\nif (raw && typeof raw === 'object') {\n  return [{ json: raw }];\n}\n\nlet text = String(raw ?? '').trim();\n\nconst toolLeak = text.match(/^Calling\\s+(\\w+)\\s+with\\s+input:/i);\nif (toolLeak) {\n  return [{ json: {\n    error: 'The model leaked a tool call as text instead of completing the report. This is a known Gemini Flash-Lite reliability issue on multi-step agent loops. Please re-submit.',\n    leaked_tool: toolLeak[1],\n    raw,\n  } }];\n}\n\nconst fenceMatch = text.match(/```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```/i);\nif (fenceMatch) text = fenceMatch[1].trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e1) {\n  const first = text.indexOf('{');\n  const last = text.lastIndexOf('}');\n  if (first !== -1 && last > first) {\n    try {\n      parsed = JSON.parse(text.slice(first, last + 1));\n    } catch (e2) {\n      return [{ json: { error: 'failed to parse agent output', message: e2.message, raw } }];\n    }\n  } else {\n    return [{ json: { error: 'failed to parse agent output (no JSON object found)', raw } }];\n  }\n}\n\nreturn [{ json: parsed }];\n"
       },
       "id": "6b6aa007-0472-4d36-b374-615e2d7d7f50",
       "name": "Clean Output",
@@ -359,7 +359,7 @@
         ]
       ]
     },
-    "Gemini 2.5 Flash Lite": {
+    "Gemini 2.5 Flash": {
       "ai_languageModel": [
         [
           {
