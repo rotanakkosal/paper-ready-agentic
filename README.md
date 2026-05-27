@@ -9,6 +9,86 @@ Researchers preparing a paper must follow many journal-specific rules buried in 
   <img src="docs/screenshots/paper-ready-report-ui.png" alt="PaperReady validation report" width="49%" />
 </p>
 
+## What the pipeline checks
+
+Each validation produces a report with **five compliance categories**, a **journal-style cover letter draft**, and a **flat submission checklist**. The agent calls four tools (`qdrant_search`, `get_reference_rules`, `crossref_verify_doi`, `doaj_lookup`) to gather evidence before producing the report.
+
+### 1. Reference style
+
+Loads the journal's `required_reference_style` (IEEE, Elsevier-Vancouver, APA 7, Harvard, Chicago) and compares the first 5 references against every rule for that style. Concretely:
+
+- Author name format (`Smith JA` vs `Smith, J. A.` vs `J. Smith`)
+- Author separator (commas, `and`, ampersand)
+- "Et al." threshold (e.g. more than 6 authors for Vancouver)
+- Title casing (sentence-case vs title-case) and formatting (italics vs plain)
+- Journal name abbreviation rules (NLM, full name, italics)
+- Volume / issue / page formatting (e.g. `42(3):123-45` vs `Vol. 42, No. 3, pp. 123-145`)
+- Year placement (before or after the journal name)
+- DOI inclusion and prefix (`doi:`, `https://doi.org/`)
+- Reference type handling (`journal_article`, `conference_paper`, `preprint`, `book`, `book_chapter`)
+
+### 2. DOI verification
+
+For up to 5 DOIs parsed from the bibliography, calls **Crossref REST** to confirm each one resolves to a real record. Catches truncated, mistyped, or hallucinated DOIs that would otherwise slip past peer review.
+
+### 3. Title page
+
+`qdrant_search` retrieves the journal's title-page requirements, then compares against the parsed manuscript:
+
+- Article title presence and length
+- Author names and affiliations (with superscript markers)
+- Corresponding author flag and contact details
+- ORCIDs (regex-detected from the PDF)
+- Present / permanent address footnotes
+- LaTeX template usage where the journal requires it
+
+### 4. Declarations
+
+`qdrant_search` retrieves declaration requirements. The PDF parser already probes for the four most common, then the agent compares them against what the guideline mandates:
+
+- Conflict of interest / competing interests
+- Funding sources and sponsor roles
+- Data availability statement
+- Ethics statement (IRB approval, animal welfare, human-subjects consent)
+- AI-tool usage declaration (some journals now require this)
+
+### 5. Legitimacy
+
+Combines two signals:
+
+- `doaj_lookup(issn)`: confirms the journal is in the Directory of Open Access Journals. An empty result is **not** a red flag, since many reputable subscription journals are not in DOAJ.
+- `journal.reputation_flag`: a curated column in `journal_metadata.csv` that surfaces hard concerns (e.g. `delisted_wos_2024` for MTAP).
+
+### Cover letter draft
+
+After the five categories, the agent drafts a 150 to 250 word cover letter that addresses the editor (or a generic "Dear Editor-in-Chief,"), names the manuscript, summarises the contribution from the abstract, justifies fit using the journal's scope, and signs off. The author edits and pastes this into the submission portal.
+
+### Submission checklist
+
+A flat list of 8 to 15 atomic must-have items the target journal expects of every submission, each tagged `pass | warn | fail | pending`. Examples drawn from the guidelines:
+
+- Title page lists all author affiliations
+- References follow the journal's required style
+- ORCIDs provided for all authors
+- Highlights (3 to 5 bullet points) supplied
+- Graphical abstract supplied
+- Conflict of interest declaration included
+- Data availability statement included
+- Keywords list (1 to 7 keywords, English) supplied
+- LaTeX submission uses the journal's template
+- Manuscript submitted via the journal's portal (status: `pending` — can't be checked from the PDF)
+
+### Out of scope (for now)
+
+These are intentionally not part of the pipeline yet. Future iterations could add them:
+
+- Figure resolution / DPI checks
+- Word count and section length limits
+- Plagiarism / similarity scoring
+- Statistical-method validation (CONSORT, ARRIVE, PRISMA)
+- Supplementary material packaging
+- Anonymisation for double-blind review
+
 ## Running locally
 
 ### What's already in the repo
