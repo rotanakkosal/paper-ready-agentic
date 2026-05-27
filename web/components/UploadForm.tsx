@@ -7,8 +7,6 @@ import {
   CloudUpload,
   X,
   AlertCircle,
-  RotateCcw,
-  CheckCircle2,
 } from "lucide-react";
 import {
   Card,
@@ -25,27 +23,20 @@ import type { ValidationReport, ApiError } from "@/lib/types";
 export type Status = "idle" | "loading" | "error" | "success";
 
 type Props = {
-  onReport: (report: ValidationReport | null) => void;
   onStatusChange: (status: Status, errorMessage?: string | null) => void;
-  /** When true, render a small "submitted" summary instead of the full form. */
-  compact?: boolean;
-  /** Called when the user wants to clear the report and submit a new one. */
-  onReset?: () => void;
   /**
-   * The report (when present) lets the compact bar show the full journal name
-   * and verdict instead of just the journal slug. Works for demo-mode too,
-   * where the form's internal state is empty but the report is populated.
+   * Called when validation finishes successfully. Receives the report plus
+   * the file + journalId the user submitted, so the parent can save to
+   * history and navigate to /report/[id].
    */
-  report?: ValidationReport | null;
+  onSuccess: (
+    report: ValidationReport,
+    file: File,
+    journalId: string,
+  ) => void;
 };
 
-export default function UploadForm({
-  onReport,
-  onStatusChange,
-  compact = false,
-  onReset,
-  report = null,
-}: Props) {
+export default function UploadForm({ onStatusChange, onSuccess }: Props) {
   const [journalId, setJournalId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -77,7 +68,6 @@ export default function UploadForm({
 
     setStatus("loading");
     setErrorMessage(null);
-    onReport(null);
 
     const fd = new FormData();
     fd.append("pdf", file);
@@ -91,67 +81,17 @@ export default function UploadForm({
           "error" in data ? data.error : `validate returned ${res.status}`;
         throw new Error(msg);
       }
-      onReport(data);
-      setStatus("success");
+      // Hand off to parent — parent saves to history and navigates to
+      // /report/[id]. We don't flip to "success" status here because the
+      // page will unmount during navigation anyway.
+      onSuccess(data, file, journalId);
     } catch (err) {
       setErrorMessage((err as Error).message);
       setStatus("error");
-      onReport(null);
     }
   }
 
-  function handleReset() {
-    // Keep journal selection (likely re-validating against same journal),
-    // clear file so user picks a fresh one.
-    setFile(null);
-    setStatus("idle");
-    setErrorMessage(null);
-    onReport(null);
-    onReset?.();
-  }
-
-  // -------- Compact summary bar (report is showing) --------
-  if (compact) {
-    const journalName =
-      report?.journal?.name ?? (journalId ? journalId : "the target journal");
-    return (
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-50">
-          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground">
-            Manuscript submitted
-          </p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {file ? (
-              <>
-                <FileText className="-mt-0.5 mr-1 inline h-3 w-3" />
-                <span className="font-medium text-foreground">{file.name}</span>
-                <span> · {(file.size / 1024).toFixed(0)} KB</span>
-                <span> · validated against </span>
-              </>
-            ) : (
-              <span>Validated against </span>
-            )}
-            <span className="font-medium text-foreground">{journalName}</span>
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleReset}
-          className="shrink-0 gap-1.5"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Validate another
-        </Button>
-      </div>
-    );
-  }
-
-  // -------- Full form view (default) --------
+  // -------- Full form view --------
   const submitDisabled = status === "loading" || !journalId || !file;
 
   return (

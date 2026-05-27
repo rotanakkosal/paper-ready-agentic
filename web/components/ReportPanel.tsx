@@ -66,8 +66,7 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
           <div className="space-y-0.5">
             <CardTitle className="text-base">Validating manuscript</CardTitle>
             <CardDescription className="text-xs">
-              Typically 20–30 seconds — agent is reading your PDF and the
-              journal&apos;s guideline
+              Typically 20–30 seconds
             </CardDescription>
           </div>
         </CardHeader>
@@ -119,23 +118,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
 
         <SubmissionChecklist report={report} />
 
-        {report.journal && (
-          <p className="px-1 text-sm text-muted-foreground">
-            Validating against{" "}
-            <span className="font-medium text-foreground">
-              {report.journal.name}
-            </span>
-            {report.journal.required_reference_style && (
-              <>
-                {" · required reference style: "}
-                <span className="font-medium text-foreground">
-                  {report.journal.required_reference_style}
-                </span>
-              </>
-            )}
-          </p>
-        )}
-
         {categories.length > 0 && (
           <div className="sticky top-0 z-20 -mx-2 border-b border-transparent bg-background/85 px-2 py-2.5 backdrop-blur-md">
             <CategoryToc categories={categories} />
@@ -151,15 +133,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
         {report.cover_letter && (
           <CoverLetterCard coverLetter={report.cover_letter} />
         )}
-
-        <details className="px-1 pt-2">
-          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-            Show raw JSON
-          </summary>
-          <pre className="mt-2 max-h-[40vh] overflow-auto rounded-md bg-muted p-4 text-xs leading-5">
-            {JSON.stringify(report, null, 2)}
-          </pre>
-        </details>
       </div>
     );
   }
@@ -204,11 +177,7 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
         <div className="flex min-h-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-accent/20 text-center">
           <FileSearch className="h-7 w-7 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium text-foreground">
-            Pick a journal and upload a PDF
-          </p>
-          <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-            Your report will appear here · five categories: reference style,
-            DOIs, title page, declarations, journal legitimacy
+            Submit a manuscript to see your report
           </p>
         </div>
       </CardContent>

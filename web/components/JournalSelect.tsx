@@ -67,7 +67,7 @@ export default function JournalSelect({ value, onChange, disabled }: Props) {
   return (
     <Select
       value={value || undefined}
-      onValueChange={onChange}
+      onValueChange={(v) => onChange(v ?? "")}
       disabled={disabled}
     >
       <SelectTrigger className="w-full">

@@ -105,38 +105,33 @@ export default function CategoryCard({ category }: Props) {
         )}
 
         {items.length > 0 && (
-          <div className="overflow-hidden rounded-md border border-border bg-muted/20">
-            <p className="border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {items.length} item{items.length === 1 ? "" : "s"} checked
-            </p>
-            <ul className="divide-y divide-border">
-              {items.map((it, i) => {
-                const its = styleFor(it.status);
-                const ItemIcon = its.Icon;
-                return (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2.5 px-3 py-2.5 text-sm"
-                  >
-                    <ItemIcon
-                      className={`mt-0.5 h-4 w-4 shrink-0 ${its.iconColor}`}
-                      aria-hidden
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-foreground">
-                        {it.label}
-                      </div>
-                      {it.detail && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {it.detail}
-                        </p>
-                      )}
+          <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-muted/20">
+            {items.map((it, i) => {
+              const its = styleFor(it.status);
+              const ItemIcon = its.Icon;
+              return (
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 px-3 py-2.5 text-sm"
+                >
+                  <ItemIcon
+                    className={`mt-0.5 h-4 w-4 shrink-0 ${its.iconColor}`}
+                    aria-hidden
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-foreground">
+                      {it.label}
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+                    {it.detail && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {it.detail}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </CardContent>
     </Card>

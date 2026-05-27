@@ -96,34 +96,6 @@ export default function SubmissionChecklist({ report }: Props) {
             <span className="font-medium text-foreground">
               {report.journal?.name ?? "the target journal"}
             </span>
-            {" · "}
-            <span className="font-medium text-emerald-700">
-              {counts.pass} pass
-            </span>
-            {counts.warn > 0 && (
-              <>
-                {" · "}
-                <span className="font-medium text-amber-700">
-                  {counts.warn} warn
-                </span>
-              </>
-            )}
-            {counts.fail > 0 && (
-              <>
-                {" · "}
-                <span className="font-medium text-rose-700">
-                  {counts.fail} fail
-                </span>
-              </>
-            )}
-            {counts.pending > 0 && (
-              <>
-                {" · "}
-                <span className="font-medium text-muted-foreground">
-                  {counts.pending} pending
-                </span>
-              </>
-            )}
           </CardDescription>
         </div>
       </CardHeader>
