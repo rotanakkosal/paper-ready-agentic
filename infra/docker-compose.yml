@@ -5,8 +5,8 @@ services:
     container_name: paper-ready-qdrant
     restart: unless-stopped
     ports:
-      - "6333:6333"   # HTTP API + dashboard
-      - "6334:6334"   # gRPC 
+      - "6333:6333"   
+      - "6334:6334"
     volumes:
       - qdrant_storage:/qdrant/storage
     environment:

@@ -42,8 +42,6 @@ export default function Home() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Legacy: /?demo=1 now redirects to the dedicated demo report page so the
-  // landing page can stay consistent (form + history) regardless of state.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -95,16 +93,12 @@ export default function Home() {
             onSuccess={onSuccess}
           />
           {status === "loading" || status === "error" ? (
-            /* During validation or after an error, show the status panel.
-               Once it succeeds we navigate away to /report/[id]. */
             <ReportPanel
               status={status}
               report={null}
               errorMessage={errorMessage}
             />
           ) : (
-            /* Idle (or briefly after status=success while navigation happens) —
-               show the history of past validations. */
             <HistoryList />
           )}
         </div>

@@ -1,7 +1,3 @@
-// Server route — proxies the browser's request to the Python sidecar's
-// /journals endpoint. Keeps the sidecar URL off the client side and lets us
-// add cache headers without coupling the frontend to sidecar internals.
-
 const SIDECAR = process.env.SIDECAR_BASE_URL ?? "http://localhost:8000";
 
 export async function GET() {

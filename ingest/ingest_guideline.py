@@ -1,17 +1,3 @@
-"""
-Ingest a journal's author-guideline PDF into Qdrant.
-
-Usage:
-    uv run python ingest_guideline.py --journal-id ivc --pdf data/ivc_author_guide.pdf
-
-The script parses the PDF page by page, chunks it with a recursive splitter that
-preserves paragraph and sentence boundaries, generates embeddings via Gemini
-(`gemini-embedding-001`, 3072 dims — matches n8n's Embeddings Google Gemini
-node, which has no output-dimensionality override), and upserts every chunk into the
-`guideline_chunks` collection in Qdrant with the journal_id, page number, and
-chunk index tagged in the payload so the agent can filter and cite them later.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -35,8 +21,6 @@ EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 3072
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 80
-# Gemini free tier caps at 100 embed requests/minute, and each item in a batch
-# counts as a separate request. 25 per batch + 22s sleep ≈ 68 RPM, well under cap.
 BATCH_SIZE = 25
 BATCH_SLEEP_SECONDS = 22
 
@@ -102,10 +86,6 @@ def ensure_collection(qdrant: QdrantClient, wipe: bool) -> None:
                 distance=qdrant_models.Distance.COSINE,
             ),
         )
-        # Index metadata.journal_id so the agent can filter retrievals by journal cheaply.
-        # Nested under "metadata" because n8n's Qdrant Vector Store wrapper exposes
-        # langchain-style {pageContent, metadata} to downstream nodes; flat top-level
-        # payload fields would be stripped.
         qdrant.create_payload_index(
             collection_name=COLLECTION,
             field_name="metadata.journal_id",
@@ -163,7 +143,6 @@ def main() -> int:
     qdrant = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
     ensure_collection(qdrant, wipe=args.wipe)
     if not args.wipe:
-        # idempotent re-run: remove old chunks for THIS journal only
         delete_journal_chunks(qdrant, args.journal_id)
         print(f"      cleared any previous chunks for journal_id='{args.journal_id}'")
 
@@ -187,11 +166,7 @@ def main() -> int:
             id=str(uuid.uuid4()),
             vector=emb,
             payload={
-                # Top-level `text` is what n8n's Qdrant node reads as pageContent
-                # (we set contentPayloadKey="text" on the search node).
                 "text": chunk["text"],
-                # Nested `metadata` is what the n8n wrapper exposes as Document.metadata
-                # to downstream nodes (and the agent for citation).
                 "metadata": {
                     "journal_id": args.journal_id,
                     "page": chunk["page"],
