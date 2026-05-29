@@ -109,26 +109,30 @@ return [{
 const BUNDLE_CONTEXT_JS = `// Bundle Context — runs after the Merge, before the Validator Agent.
 //
 // Input:  $input.first().json = output of "Merge" (combineByPosition)
-//           - manuscript: ParsedManuscript from Parse Manuscript
-//           - journal_id, name, required_reference_style, issn,
-//             reputation_flag, url from Get Journal Metadata
+//           input 0: { journal_id, manuscript } from Parse Manuscript
+//           input 1: requirements JSON from Get Requirements
+//                    ({ journal_id, journal_name, item_count, items[] })
+//         $('Get Journal Metadata').first().json — full CSV row for the journal
 //
-// Output: a single item bundling { manuscript, journal } for the agent.
-//         The agent retrieves guideline passages on-demand via the
-//         qdrant_search tool — Bundle Context no longer pre-fetches them.
+// Output: a single item bundling { manuscript, journal, requirements } for
+//         the agent. The agent grades each pre-extracted requirement against
+//         the manuscript instead of discovering requirements via RAG.
 
 const m = $input.first().json || {};
 const manuscript = m.manuscript || null;
+const journalRow = $('Get Journal Metadata').first().json || {};
 const journal = {
-  journal_id: m.journal_id ?? null,
-  name: m.name ?? null,
-  required_reference_style: m.required_reference_style ?? null,
-  issn: m.issn ?? null,
-  reputation_flag: m.reputation_flag ?? null,
-  url: m.url ?? null
+  journal_id: journalRow.journal_id ?? m.journal_id ?? null,
+  name: journalRow.name ?? null,
+  required_reference_style: journalRow.required_reference_style ?? null,
+  issn: journalRow.issn ?? null,
+  reputation_flag: journalRow.reputation_flag ?? null,
+  url: journalRow.homepage_url ?? null
 };
+// The merge will have copied requirements fields onto $json.
+const requirements = Array.isArray(m.items) ? m.items : [];
 
-return [{ json: { manuscript, journal } }];
+return [{ json: { manuscript, journal, requirements } }];
 `;
 
 const VALIDATOR_SYSTEM_MESSAGE = `You are PaperReady, a pre-submission validator for academic manuscripts.
@@ -138,46 +142,63 @@ You receive in the user message:
     abstract, sections_detected, declarations, references[], stats)
   - journal: target journal metadata (journal_id, name, required_reference_style,
     issn, reputation_flag, url)
+  - requirements: a PRE-EXTRACTED list of atomic submission requirements for
+    the target journal. Each item has { topic, requirement, page }. This list
+    was built once from the full author guideline at ingest time — it is the
+    authoritative checklist. You do NOT need to discover requirements yourself.
 
 You have FOUR tools. Use them sparingly — token/rate budget is tight:
   - qdrant_search(query)        — semantic search over the target journal's
-                                  official author guideline. Returns top-5
-                                  passages with page + chunk_index_on_page.
-                                  Use AT MOST 3 calls total, one per topic
-                                  (reference style, title page, declarations).
+                                  official author guideline. Use AT MOST 2 calls
+                                  total, only when a requirement needs guideline
+                                  context to grade.
   - get_reference_rules(style_name)
                                 — fetch the journal's expected reference style
                                   rules. Call ONCE with journal.required_reference_style.
   - crossref_verify_doi(doi)    — verify a DOI resolves on Crossref. Call on
-                                  AT MOST 5 sampled DOIs from manuscript.references[].
+                                  AT MOST 3 sampled DOIs from manuscript.references[].
   - doaj_lookup(issn)           — look up the journal in DOAJ by ISSN. Call ONCE
                                   with journal.issn (skip if issn is null).
 
-Produce a ValidationReport JSON with five categories:
-  1. reference_style  - using get_reference_rules + manuscript.references[].raw,
-                        does the manuscript follow journal.required_reference_style?
-                        Inspect the first 5 references for numbering, ordering,
-                        punctuation.
-  2. doi_verification - call crossref_verify_doi on up to 5 sampled DOIs from
-                        manuscript.references[]. Mark each pass/fail.
-  3. title_page       - qdrant_search for title-page requirements (title, authors,
-                        affiliations, corresponding author, ORCIDs). Compare
-                        against manuscript.title / manuscript.orcids_found /
-                        manuscript.sections_detected.
-  4. declarations     - qdrant_search for declaration requirements (COI, funding,
-                        data availability, ethics). Compare against
-                        manuscript.declarations.
-  5. legitimacy       - combine journal.reputation_flag with the doaj_lookup
-                        result. Empty DOAJ results don't mean illegitimate —
-                        many reputable journals aren't OA.
+Your job has two parts:
 
-Rules:
-  - Cite qdrant_search hits by {page, chunk_index_on_page} in evidence_from_guideline.
-  - Never fabricate citations. If qdrant_search returns nothing on a topic, write
-    "guideline silent on this" and use status "warn".
-  - After the 5 categories, also draft a \`cover_letter\` string the author can use as a starting point. 150–250 words, plain text with \\n line breaks (no markdown). Address 'Dear Editor-in-Chief,' if no editor name is available in journal metadata. Mention the manuscript title, briefly state the contribution drawn from the abstract, justify the fit using the journal's scope (one or two sentences), close with 'Sincerely,\\nThe authors'. The cover letter is a separate top-level field, not a category.
-  - After the categories and cover_letter, also produce a \`submission_checklist\`: a flat list of 8-15 atomic must-have requirements the target journal demands of any submission. Each entry is ONE requirement (not a category, not a finding). Use the journal's guideline (via qdrant_search results you already have) to drive the list. Examples: 'Title page lists all author affiliations', 'References follow IEEE numbered style', 'ORCIDs provided for all authors', 'Conflict of Interest declaration included', 'Manuscript submitted via the journal's portal'. Set status based on whether the manuscript satisfies it. Include guideline_page when you cite a page from qdrant_search. Use status \`pending\` for requirements that cannot be verified from the manuscript alone (e.g. 'submitted via correct portal'). Order doesn't matter — the frontend sorts.
+PART A — Grade EVERY item in requirements[].
+  For each input requirement, emit one entry in submission_checklist with:
+    - requirement: copied verbatim from the input
+    - topic: copied verbatim from the input
+    - guideline_page: copied verbatim from the input (the input's "page" field)
+    - status: "pass" if the manuscript clearly satisfies it,
+              "fail" if it clearly violates it,
+              "warn" if it partially satisfies or is ambiguous,
+              "pending" if it cannot be verified from the manuscript alone
+              (anything about the submission portal, file naming on upload,
+              reviewer suggestions, cover-letter content).
+    - detail: one short sentence explaining the verdict.
+  The output submission_checklist MUST have EXACTLY one entry per requirements
+  item. Do NOT invent extras. Do NOT drop items.
+
+PART B — Produce five category summaries.
+  Group your gradings into five categories and write a short explanation per
+  category, with at most 3 representative items each (the most important
+  findings, not every checklist row). Categories: reference_style,
+  doi_verification, title_page, declarations, legitimacy. Empty DOAJ results
+  do NOT mean illegitimate.
+
+Also produce a cover_letter string (150–250 words, plain text with \\n line
+breaks, no markdown). Address 'Dear Editor-in-Chief,' if no editor name is
+known. Mention the manuscript title, summarise the contribution from the
+abstract, justify fit using the journal's scope, close with 'Sincerely,\\nThe authors'.
+
+Output rules:
   - Output ONLY the ValidationReport JSON. No prose, no markdown fences.
+  - Cite qdrant_search hits by {page, chunk_index_on_page} in evidence_from_guideline.
+  - summary.pass_count, warn_count, fail_count count submission_checklist entries
+    (NOT category items). pending entries don't count toward any of the three.
+  - summary.verdict: "pass" if fail_count == 0 and warn_count <= 2,
+                     "needs_revision" if fail_count <= 3,
+                     "fail" otherwise.
+  - Never fabricate. If a requirement can't be checked from the manuscript, mark
+    it pending.
 
 ValidationReport JSON shape:
 {
@@ -199,7 +220,8 @@ ValidationReport JSON shape:
   "cover_letter": "Dear Editor-in-Chief,\\n\\n... (150–250 words) ...\\n\\nSincerely,\\nThe authors",
   "submission_checklist": [
     {
-      "requirement": "Atomic must-have statement, e.g. 'ORCIDs provided for all authors'",
+      "topic": "title_page|declarations|references|figures_tables|...",
+      "requirement": "Copied verbatim from the requirements input",
       "status": "pass|warn|fail|pending",
       "detail": "One-sentence reason it passed or failed",
       "guideline_page": 0
@@ -215,7 +237,10 @@ MANUSCRIPT:
 TARGET JOURNAL:
 {{ JSON.stringify($json.journal, null, 2) }}
 
-Call your tools (qdrant_search, get_reference_rules, crossref_verify_doi, doaj_lookup) to gather evidence, then produce a ValidationReport JSON exactly matching the schema in your system message. Output JSON only. Also produce a cover_letter draft per the schema. Also produce a submission_checklist per the schema.`;
+REQUIREMENTS (authoritative — grade every one as a submission_checklist entry):
+{{ JSON.stringify($json.requirements, null, 2) }}
+
+Grade each requirement against the manuscript. Use your tools only when needed for nuance (DOI verification, reference-style rules, DOAJ lookup, occasional guideline context). Produce the ValidationReport JSON exactly matching the schema in your system message. Output JSON only.`;
 
 const QDRANT_TOOL_DESCRIPTION = `Semantic search over the target journal's official author guideline (the manuscript's destination journal). Input is a natural-language query like "title page requirements" or "conflict of interest statement". Returns the top-5 most relevant passages, each with its page number and chunk_index_on_page. Use this for any question about the journal's format requirements.`;
 
@@ -329,6 +354,21 @@ const fetchJournal = node({
       options: {}
     },
     position: [448, 208]
+  }
+});
+
+const fetchRequirements = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.4,
+  config: {
+    name: 'Get Requirements',
+    parameters: {
+      url: expr('http://host.docker.internal:8000/requirements/{{ $json.journal_id }}'),
+      options: {
+        response: { response: { neverError: true } }
+      }
+    },
+    position: [560, 208]
   }
 });
 
@@ -519,7 +559,7 @@ export default workflow('paperready-validate', 'PaperReady — Validate')
   .add(webhookTrigger)
   .to(extractPdf.to(parseManuscript.to(mergeJournalAndManuscript.input(0))))
   .add(webhookTrigger)
-  .to(fetchJournal.to(mergeJournalAndManuscript.input(1)))
+  .to(fetchJournal.to(fetchRequirements.to(mergeJournalAndManuscript.input(1))))
   .add(mergeJournalAndManuscript)
   .to(bundleContext)
   .to(validatorAgent)

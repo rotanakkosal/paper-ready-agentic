@@ -3,11 +3,15 @@
 Both CSVs are read once and cached in memory at first access. They're small
 (58 + 68 rows) and change only when curated manually, so process-lifetime
 caching is fine.
+
+Also serves the per-journal pre-extracted submission requirements JSON
+written by `ingest/extract_requirements.py`.
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import logging
 import os
 from functools import lru_cache
@@ -112,3 +116,19 @@ def get_rules_for_style(
     if reference_type:
         rules = [r for r in rules if r["reference_type"] == reference_type]
     return rules
+
+
+@lru_cache(maxsize=16)
+def load_requirements(journal_id: str) -> Optional[dict]:
+    """Load the pre-extracted submission requirements for a journal.
+
+    Returns the parsed JSON (with item_count, items[], etc.) or None if no
+    requirements file exists. Files are produced by
+    `ingest/extract_requirements.py` and live at
+    ingest/out/requirements/{journal_id}.json.
+    """
+    path = _data_dir() / "requirements" / f"{journal_id}.json"
+    if not path.exists():
+        return None
+    with path.open(encoding="utf-8") as f:
+        return json.load(f)

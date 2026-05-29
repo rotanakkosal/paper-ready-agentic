@@ -6,6 +6,7 @@ Structured CSV lookups for the n8n agent + the Next.js dropdown:
   GET  /journals?all=true                list all 58 journals from the CSV
   GET  /journals/{journal_id}            metadata for one journal
   GET  /reference-rules/{style_name}     formatting rules for a reference style
+  GET  /requirements/{journal_id}        pre-extracted submission checklist for a journal
 
 Manuscript PDF parsing lives in the n8n validate workflow (Extract from File +
 JS Code node), not here.
@@ -72,3 +73,22 @@ def get_reference_rules(
         "rules": rules,
         "count": len(rules),
     }
+
+
+@app.get("/requirements/{journal_id}")
+def get_requirements(journal_id: str) -> dict:
+    """Return the pre-extracted submission requirements for a journal.
+
+    The agent calls this once per validation and grades each item against
+    the manuscript, instead of discovering requirements via RAG at run time.
+    """
+    reqs = data.load_requirements(journal_id)
+    if reqs is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": f"no requirements file for journal '{journal_id}'. Run `extract_requirements.py` first.",
+                "code": "requirements_not_found",
+            },
+        )
+    return reqs
