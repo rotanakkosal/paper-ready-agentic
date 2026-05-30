@@ -65,7 +65,9 @@ After the five categories, the agent drafts a 150 to 250 word cover letter that 
 
 ### Submission checklist
 
-A flat list of 8 to 15 atomic must-have items the target journal expects of every submission, each tagged `pass | warn | fail | pending`. Examples drawn from the guidelines:
+A flat, exhaustive list of every must-have item the target journal expects, each tagged `pass | warn | fail | pending`. Sized to the journal, not a fixed number: ~65 items for TPAMI, ~76 for IVC.
+
+The list is **pre-extracted at ingest time** rather than rediscovered during validation. `ingest/extract_requirements.py` runs one Gemini call over the full guideline PDF and writes the atomic checklist to `ingest/out/requirements/<journal_id>.json`. At run time the agent loads that list from the sidecar and grades every item against the manuscript — so the checklist is exhaustive by construction instead of bounded by what RAG happened to retrieve. Examples from real runs:
 
 - Title page lists all author affiliations
 - References follow the journal's required style
@@ -99,6 +101,7 @@ You don't need to source any data yourself. The repo ships with everything requi
 - `ingest/out/reference_style_rules.csv` (68 curated style rules)
 - `ingest/data/tpami_author_guide.pdf` and `ingest/data/ivc_author_guide.pdf` (the two guideline PDFs to embed)
 - `ingest/data/sample_manuscript.pdf` (a Vision Transformer paper to validate against)
+- `ingest/out/requirements/tpami.json` and `ingest/out/requirements/ivc.json` (pre-extracted submission checklists, ~65 and ~76 atomic items)
 - `n8n/workflows/validate.json` (the agent workflow, ready to import)
 
 ### Supported journals
@@ -143,6 +146,17 @@ uv run --directory ingest python ingest_guideline.py --journal-id ivc   --pdf da
 
 This produces 235 chunks across the two journals. The script throttles itself for the Gemini free-tier embedding quota, so each PDF takes about 2 minutes.
 
+> **Skip if you don't plan to add new journals.** The repo already ships with `ingest/out/requirements/tpami.json` and `ingest/out/requirements/ivc.json`. If you only want to validate against these two journals, you can jump to Step 4.
+
+If you DO want to refresh or add a new journal's checklist, run the extractor:
+
+```powershell
+uv run --directory ingest python extract_requirements.py --journal-id tpami --pdf data/tpami_author_guide.pdf
+uv run --directory ingest python extract_requirements.py --journal-id ivc   --pdf data/ivc_author_guide.pdf
+```
+
+One Gemini call per journal, ~30 seconds each. Writes to `ingest/out/requirements/<journal_id>.json`.
+
 ### Step 4. Start the Python sidecar
 
 ```powershell
@@ -182,33 +196,45 @@ Each validation calls Gemini 2.5 Flash roughly 7 to 10 times (one initial round,
    ```powershell
    uv run --directory ingest python ingest_guideline.py --journal-id <journal_id> --pdf data/<journal_id>_author_guide.pdf
    ```
-4. Refresh the frontend. The dropdown queries Qdrant live, so the new journal shows up as soon as ingest finishes.
+4. Extract the pre-built submission checklist:
+   ```powershell
+   uv run --directory ingest python extract_requirements.py --journal-id <journal_id> --pdf data/<journal_id>_author_guide.pdf
+   ```
+5. Refresh the frontend. The dropdown queries Qdrant live and the workflow loads the new requirements JSON automatically, so the journal shows up and is fully gradeable as soon as both scripts finish.
 
 ## Architecture
 
 ```
-[Next.js frontend]   upload PDF + pick journal
-        │
-        ▼  POST /webhook/validate  (multipart: pdf + journal_id)
-[n8n Validator Agent (Gemini 2.5 Flash)]
-        │   one workflow:
-        │     webhook → Extract from File (PDF) → Parse Manuscript (JS Code)
-        │     ┊                                            │
-        │     └─ HTTP → sidecar /journals/{id} ─ Merge ─┐
-        │                                                ▼
-        │                                       Qdrant search (top-5, journal-filtered)
-        │                                                │
-        │                                       Validator Agent + 4 tools
-        │                                                │
-        │                                          Clean Output → Respond
-        │
-        ├──► Qdrant   (235 author-guideline chunks across tpami + ivc, 3072-dim)
-        ├──► Crossref REST   (DOI verification)
-        ├──► DOAJ REST       (journal legitimacy + OA check)
-        └──► Python sidecar  (CSV lookups: /journals, /reference-rules)
+INGEST TIME (once per journal)
+  ingest_guideline.py     ──► Qdrant (3072-dim chunks, journal-filtered)
+  extract_requirements.py ──► ingest/out/requirements/<id>.json (atomic checklist)
+
+RUN TIME (per validation)
+  [Next.js frontend]   upload PDF + pick journal
+          │
+          ▼  POST /webhook/validate  (multipart: pdf + journal_id)
+  [n8n Validator Agent (Gemini 2.5 Flash)]
+          │   one workflow:
+          │     webhook → Extract from File → Parse Manuscript (JS Code)
+          │     ┊                                          │
+          │     └─ HTTP → /journals/{id} → /requirements/{id} → Merge ─┐
+          │                                                            ▼
+          │                                                Validator Agent + 4 tools
+          │                                                            │
+          │                                                Clean Output → Respond
+          │
+          ├──► Qdrant     (235 author-guideline chunks across tpami + ivc)
+          ├──► Crossref   (DOI verification, agent tool)
+          ├──► DOAJ       (journal legitimacy, agent tool)
+          └──► Sidecar    (/journals, /reference-rules/{style}, /requirements/{id})
 ```
 
-The entire agent pipeline (LLM reasoning, tool routing, retrieval, response shaping) lives in a single n8n workflow. PDF parsing happens inside the workflow via n8n's `Extract from File` node plus a JavaScript `Code` node. The Python sidecar is a small FastAPI service that exposes CSV lookups. Next.js is the UI shell.
+Two phases:
+
+1. **Ingest time** (once per journal). `ingest_guideline.py` embeds chunks into Qdrant for semantic lookups; `extract_requirements.py` makes one Gemini call over the whole PDF and writes a flat, atomic checklist to disk.
+2. **Run time** (every validation). The n8n workflow fetches journal metadata + the pre-extracted checklist, runs the agent, which grades every checklist item against the parsed manuscript. The agent's tools (`qdrant_search`, `get_reference_rules`, `crossref_verify_doi`, `doaj_lookup`) are used sparingly, only when a single requirement needs context to grade.
+
+The whole agent pipeline lives in a single n8n workflow. The Python sidecar is a small FastAPI service serving CSV and requirements-JSON lookups. Next.js is the UI shell.
 
 ## Tech stack
 
@@ -235,15 +261,17 @@ paper-ready/
 ├── infra/
 │   └── docker-compose.yml         # Qdrant container
 ├── ingest/
-│   ├── data/                      # Source PDFs (gitignored, copyrighted)
+│   ├── data/                      # Source PDFs (author guides + sample manuscript)
 │   ├── out/
 │   │   ├── journal_metadata.csv   # 58 curated journals
-│   │   └── reference_style_rules.csv  # 68 curated style rules
-│   └── ingest_guideline.py        # PDF to chunks to Qdrant (throttled for free tier)
-├── sidecar/                       # FastAPI service (CSV lookups only)
+│   │   ├── reference_style_rules.csv  # 68 curated style rules
+│   │   └── requirements/          # Pre-extracted per-journal submission checklists
+│   ├── ingest_guideline.py        # PDF to chunks to Qdrant (throttled for free tier)
+│   └── extract_requirements.py    # Full guideline to atomic checklist via Gemini (1 call)
+├── sidecar/                       # FastAPI service for the agent + frontend
 │   └── app/
-│       ├── main.py                # GET /journals, /journals/{id}, /reference-rules/{style}
-│       └── data.py                # CSV loaders + Vancouver style aliases
+│       ├── main.py                # GET /journals, /journals/{id}, /reference-rules/{style}, /requirements/{id}
+│       └── data.py                # CSV loaders + Vancouver style aliases + requirements loader
 ├── n8n/workflows/
 │   ├── validate.workflow.ts       # n8n SDK source (TypeScript)
 │   ├── validate.json              # Exported workflow (for import into n8n)
