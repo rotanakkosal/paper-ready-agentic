@@ -43,9 +43,12 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
   }, [status, errorMessage, onStatusChange]);
 
   function pickFile(f: File | null) {
-    if (f && f.type === "application/pdf") {
+    if (!f) return;
+    const looksLikePdf =
+      f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    if (looksLikePdf) {
       setFile(f);
-    } else if (f) {
+    } else {
       setFile(null);
       setErrorMessage("Only PDF files are supported right now.");
       setStatus("error");
