@@ -65,6 +65,8 @@ export type SubmissionChecklistItem = {
   detail?: string;
   /** Page in the author guideline where this requirement is stated, if cited. */
   guideline_page?: number;
+  /** Topic slug from the pre-extracted requirements (e.g. "title_page"). */
+  topic?: string;
 };
 
 export type ValidationReport = {

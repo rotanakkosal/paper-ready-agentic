@@ -47,6 +47,56 @@ const GROUPS: {
   { key: "pass", label: "Passing", accent: "text-emerald-700", dot: "bg-emerald-500" },
 ];
 
+const TOPIC_LABEL: Record<string, string> = {
+  title_page: "Title page",
+  references: "References",
+  declarations: "Declarations",
+  figures_tables: "Figures & tables",
+  abstract_keywords: "Abstract & keywords",
+  highlights_graphical_abstract: "Highlights & graphical abstract",
+  data_availability: "Data availability",
+  ethics: "Ethics",
+  ai_disclosure: "AI disclosure",
+  manuscript_structure: "Manuscript structure",
+  submission_process: "Submission process",
+  open_access_license: "Open access & license",
+  other: "Other",
+};
+
+const TOPIC_ORDER = [
+  "title_page",
+  "abstract_keywords",
+  "highlights_graphical_abstract",
+  "references",
+  "figures_tables",
+  "declarations",
+  "data_availability",
+  "ethics",
+  "ai_disclosure",
+  "manuscript_structure",
+  "open_access_license",
+  "submission_process",
+  "other",
+];
+
+function groupByTopic(
+  rows: SubmissionChecklistItem[],
+): { topic: string | null; items: SubmissionChecklistItem[] }[] {
+  const byTopic = new Map<string, SubmissionChecklistItem[]>();
+  for (const r of rows) {
+    const key = r.topic ?? "__no_topic__";
+    if (!byTopic.has(key)) byTopic.set(key, []);
+    byTopic.get(key)!.push(r);
+  }
+  const order = [...TOPIC_ORDER, "__no_topic__"];
+  return order
+    .filter((t) => byTopic.has(t))
+    .map((t) => ({
+      topic: t === "__no_topic__" ? null : t,
+      items: byTopic.get(t)!,
+    }));
+}
+
 type Props = { report: ValidationReport };
 
 export default function SubmissionChecklist({ report }: Props) {
@@ -96,21 +146,24 @@ export default function SubmissionChecklist({ report }: Props) {
         {GROUPS.map((g) => {
           const rows = grouped[g.key];
           if (rows.length === 0) return null;
-          return (
-            <section key={g.key} className="space-y-1">
-              <div className="flex items-center gap-2 px-1 pb-1">
-                <span className={`h-2 w-2 rounded-full ${g.dot}`} aria-hidden />
-                <h3
-                  className={`text-[11px] font-semibold uppercase tracking-wider ${g.accent}`}
-                >
-                  {g.label}
-                </h3>
-                <span className="text-[11px] text-muted-foreground">
-                  · {rows.length}
-                </span>
-              </div>
+          const topicSubGroups = groupByTopic(rows);
+          const showTopicHeaders =
+            topicSubGroups.length > 1 ||
+            (topicSubGroups.length === 1 && topicSubGroups[0].topic !== null);
+          const sectionContent = topicSubGroups.map((sub) => (
+            <div key={sub.topic ?? "__no_topic__"} className="space-y-0.5">
+              {showTopicHeaders && (
+                <div className="flex items-baseline gap-1.5 px-1 pt-1.5">
+                  <span className="text-xs font-medium text-foreground/70">
+                    {sub.topic ? TOPIC_LABEL[sub.topic] ?? sub.topic : "Other"}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {sub.items.length}
+                  </span>
+                </div>
+              )}
               <ul className="divide-y divide-border">
-                {rows.map((row, i) => {
+                {sub.items.map((row, i) => {
                   const s = STATUS_ICON[row.status] ?? STATUS_ICON.pending;
                   const { Icon } = s;
                   const isAction =
@@ -153,6 +206,23 @@ export default function SubmissionChecklist({ report }: Props) {
                   );
                 })}
               </ul>
+            </div>
+          ));
+
+          return (
+            <section key={g.key} className="space-y-1">
+              <div className="flex items-center gap-2 px-1 pb-1">
+                <span className={`h-2 w-2 rounded-full ${g.dot}`} aria-hidden />
+                <h3
+                  className={`text-[11px] font-semibold uppercase tracking-wider ${g.accent}`}
+                >
+                  {g.label}
+                </h3>
+                <span className="text-[11px] text-muted-foreground">
+                  · {rows.length}
+                </span>
+              </div>
+              <div className="space-y-2">{sectionContent}</div>
             </section>
           );
         })}
