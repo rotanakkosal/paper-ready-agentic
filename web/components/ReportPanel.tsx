@@ -43,11 +43,6 @@ const ERROR_TIPS = [
   "Crossref or Qdrant may be briefly slow. Retry once.",
 ];
 
-/**
- * Parse "wait ~60 seconds" / "60s" style hints out of a rate-limit error
- * message. Returns the seconds to wait, or null if the error isn't a
- * rate-limit. Falls back to 60s if rate-limited but no number is mentioned.
- */
 function parseRateLimitSeconds(msg: string): number | null {
   if (!/rate.?limit|too many requests|429|free.?tier/i.test(msg)) return null;
   const m = msg.match(/(\d+)\s*(?:s\b|sec|second)/i);
@@ -62,8 +57,6 @@ type Props = {
 };
 
 export default function ReportPanel({ status, report, errorMessage }: Props) {
-  // Cycle the loading-step indicator while the agent runs. Resets every time
-  // we leave the loading state.
   const [loadingStep, setLoadingStep] = useState(0);
   useEffect(() => {
     if (status !== "loading") {
@@ -76,9 +69,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     return () => clearInterval(t);
   }, [status]);
 
-  // Rate-limit countdown: when the error looks like "wait ~60 seconds", start
-  // a per-second ticker so the user knows exactly when they can re-submit.
-  // null when not a rate-limit error.
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   useEffect(() => {
     if (status !== "error" || !errorMessage) {
@@ -95,7 +85,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     return () => clearTimeout(t);
   }, [secondsLeft]);
 
-  // LOADING — show the stepper inside the report shell
   if (status === "loading") {
     return (
       <Card>
@@ -148,7 +137,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     );
   }
 
-  // SUCCESS — render the actual report
   if (status === "success" && report) {
     const categories = report.categories ?? [];
 
@@ -177,7 +165,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     );
   }
 
-  // ERROR — show the error inside the report shell
   if (status === "error" && errorMessage) {
     const ready = secondsLeft !== null && secondsLeft <= 0;
     return (
@@ -260,7 +247,6 @@ export default function ReportPanel({ status, report, errorMessage }: Props) {
     );
   }
 
-  // IDLE — empty preview shell
   return (
     <Card className="h-full">
       <CardHeader className="flex flex-row items-start gap-3 space-y-0">

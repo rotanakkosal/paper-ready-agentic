@@ -18,11 +18,6 @@ export type Status = "idle" | "loading" | "error" | "success";
 
 type Props = {
   onStatusChange: (status: Status, errorMessage?: string | null) => void;
-  /**
-   * Called when validation finishes successfully. Receives the report plus
-   * the file + journalId the user submitted, so the parent can save to
-   * history and navigate to /report/[id].
-   */
   onSuccess: (
     report: ValidationReport,
     file: File,
@@ -78,9 +73,6 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
           "error" in data ? data.error : `validate returned ${res.status}`;
         throw new Error(msg);
       }
-      // Hand off to parent — parent saves to history and navigates to
-      // /report/[id]. We don't flip to "success" status here because the
-      // page will unmount during navigation anyway.
       onSuccess(data, file, journalId);
     } catch (err) {
       setErrorMessage((err as Error).message);
@@ -88,7 +80,6 @@ export default function UploadForm({ onStatusChange, onSuccess }: Props) {
     }
   }
 
-  // -------- Full form view --------
   const submitDisabled = status === "loading" || !journalId || !file;
 
   return (

@@ -2,7 +2,6 @@ const N8N = process.env.N8N_BASE_URL ?? "http://localhost:5678";
 const SECRET = process.env.N8N_WEBHOOK_SECRET;
 
 export async function POST(req: Request) {
-  // Forward the incoming FormData as-is to preserve the binary PDF + text fields.
   const incoming = await req.formData();
 
   const headers: Record<string, string> = {};
@@ -26,9 +25,7 @@ export async function POST(req: Request) {
     let body = "";
     try {
       body = await upstream.text();
-    } catch {
-      // ignore
-    }
+    } catch {}
     return Response.json(
       { error: `validate webhook returned ${upstream.status}: ${body.slice(0, 400)}` },
       { status: upstream.status },
