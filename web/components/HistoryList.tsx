@@ -3,6 +3,32 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { History as HistoryIcon, ChevronRight, Trash2 } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  formatTimeAgo,
+  getHistory,
+  clearHistory,
+  deleteEntry,
+  type HistoryEntry,
+} from "@/lib/history";
 
 function PdfIcon({ className }: { className?: string }) {
   return (
@@ -38,21 +64,6 @@ function PdfIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  formatTimeAgo,
-  getHistory,
-  clearHistory,
-  deleteEntry,
-  type HistoryEntry,
-} from "@/lib/history";
 
 const VERDICT_LABEL: Record<string, string> = {
   pass: "Ready",
@@ -76,7 +87,6 @@ export default function HistoryList() {
   }, []);
 
   function onClear() {
-    if (!confirm("Clear all past validations from this browser?")) return;
     clearHistory();
     setEntries([]);
   }
@@ -145,17 +155,41 @@ export default function HistoryList() {
             in your browser
           </CardDescription>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
-          onClick={onClear}
-          aria-label="Clear all history"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Clear
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+                aria-label="Clear all history"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear
+              </Button>
+            }
+          />
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear all past validations?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes all {entries.length}{" "}
+                {entries.length === 1 ? "run" : "runs"} from this browser. The
+                action can't be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onClear}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Clear all
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardHeader>
       <CardContent className="p-0">
         <ul className="divide-y divide-border">
