@@ -7,6 +7,7 @@ import {
   CircleDashed,
   ListChecks,
   BookOpen,
+  ChevronRight,
 } from "lucide-react";
 import {
   Card,
@@ -208,6 +209,29 @@ export default function SubmissionChecklist({ report }: Props) {
               </ul>
             </div>
           ));
+
+          if (g.key === "pass") {
+            return (
+              <details key={g.key} className="group/pass space-y-1">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-1 pb-1 [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/70 transition-transform group-open/pass:rotate-90" />
+                  <span className={`h-2 w-2 rounded-full ${g.dot}`} aria-hidden />
+                  <h3
+                    className={`text-[11px] font-semibold uppercase tracking-wider ${g.accent}`}
+                  >
+                    {g.label}
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground">
+                    · {rows.length}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground/70 group-open/pass:hidden">
+                    (click to expand)
+                  </span>
+                </summary>
+                <div className="space-y-2">{sectionContent}</div>
+              </details>
+            );
+          }
 
           return (
             <section key={g.key} className="space-y-1">
