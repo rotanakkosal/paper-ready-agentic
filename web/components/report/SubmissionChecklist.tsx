@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -8,6 +9,8 @@ import {
   ListChecks,
   BookOpen,
   ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -102,6 +105,23 @@ type Props = { report: ValidationReport };
 
 export default function SubmissionChecklist({ report }: Props) {
   const items = resolveChecklistItems(report);
+  const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim().toLowerCase();
+
+  const filteredItems = useMemo(() => {
+    if (!trimmedQuery) return items;
+    return items.filter((row) => {
+      const topicLabel = row.topic
+        ? (TOPIC_LABEL[row.topic] ?? row.topic).toLowerCase()
+        : "";
+      return (
+        row.requirement.toLowerCase().includes(trimmedQuery) ||
+        (row.detail?.toLowerCase().includes(trimmedQuery) ?? false) ||
+        topicLabel.includes(trimmedQuery)
+      );
+    });
+  }, [items, trimmedQuery]);
+
   if (items.length === 0) return null;
 
   // Defence-in-depth against agent-hallucinated page numbers: only trust a
@@ -122,28 +142,82 @@ export default function SubmissionChecklist({ report }: Props) {
     pending: [],
     pass: [],
   };
-  for (const row of items) {
+  for (const row of filteredItems) {
     const key = (row.status in grouped ? row.status : "pending") as GroupKey;
     grouped[key].push(row);
   }
+  const hasFilter = trimmedQuery.length > 0;
+  const visibleCount = filteredItems.length;
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-        <ListChecks className="h-7 w-7 shrink-0 text-foreground" aria-hidden />
-        <div className="space-y-0.5">
-          <CardTitle className="text-base leading-none">
-            Submission checklist
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {items.length} requirement{items.length === 1 ? "" : "s"} for{" "}
-            <span className="font-medium text-foreground">
-              {report.journal?.name ?? "the target journal"}
-            </span>
-          </CardDescription>
+      <CardHeader className="space-y-3">
+        <div className="flex flex-row items-center gap-3 space-y-0">
+          <ListChecks className="h-7 w-7 shrink-0 text-foreground" aria-hidden />
+          <div className="space-y-0.5">
+            <CardTitle className="text-base leading-none">
+              Submission checklist
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {hasFilter ? (
+                <>
+                  {visibleCount} of {items.length} requirement
+                  {items.length === 1 ? "" : "s"} matching{" "}
+                  <span className="font-medium text-foreground">
+                    &ldquo;{query.trim()}&rdquo;
+                  </span>
+                </>
+              ) : (
+                <>
+                  {items.length} requirement{items.length === 1 ? "" : "s"} for{" "}
+                  <span className="font-medium text-foreground">
+                    {report.journal?.name ?? "the target journal"}
+                  </span>
+                </>
+              )}
+            </CardDescription>
+          </div>
+        </div>
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter requirements (e.g. ORCID, abstract, references)"
+            aria-label="Filter requirements"
+            className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-8 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          {hasFilter && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear filter"
+              className="absolute right-1.5 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
+        {hasFilter && visibleCount === 0 && (
+          <div className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              No requirements match &ldquo;{query.trim()}&rdquo;
+            </p>
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="mt-1 text-xs font-medium text-primary hover:underline"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
         {GROUPS.map((g) => {
           const rows = grouped[g.key];
           if (rows.length === 0) return null;
