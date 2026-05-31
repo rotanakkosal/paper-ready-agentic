@@ -2,12 +2,42 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-  History as HistoryIcon,
-  FileText,
-  ChevronRight,
-  Trash2,
-} from "lucide-react";
+import { History as HistoryIcon, ChevronRight, Trash2 } from "lucide-react";
+
+function PdfIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 2v6h6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <text
+        x="12"
+        y="18"
+        textAnchor="middle"
+        fontSize="5.5"
+        fontWeight="700"
+        fontFamily="ui-sans-serif, system-ui, sans-serif"
+        fill="currentColor"
+      >
+        PDF
+      </text>
+    </svg>
+  );
+}
 import {
   Card,
   CardContent,
@@ -20,6 +50,7 @@ import {
   formatTimeAgo,
   getHistory,
   clearHistory,
+  deleteEntry,
   type HistoryEntry,
 } from "@/lib/history";
 
@@ -48,6 +79,11 @@ export default function HistoryList() {
     if (!confirm("Clear all past validations from this browser?")) return;
     clearHistory();
     setEntries([]);
+  }
+
+  function onDelete(id: string) {
+    deleteEntry(id);
+    setEntries((prev) => prev.filter((e) => e.id !== id));
   }
 
   // While hydrating, render the same shell shape so the layout doesn't jump.
@@ -134,7 +170,7 @@ export default function HistoryList() {
                   href={`/report/${e.id}`}
                   className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
                 >
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <PdfIcon className="h-5 w-5 shrink-0 text-rose-600/80" />
                   <div className="flex-1 min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
                       {e.fileName ?? "Untitled manuscript"}
@@ -150,6 +186,18 @@ export default function HistoryList() {
                   >
                     {label}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      onDelete(e.id);
+                    }}
+                    aria-label={`Delete ${e.fileName ?? "this entry"}`}
+                    className="shrink-0 rounded-md p-1 text-muted-foreground/40 opacity-0 transition-all hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
                 </Link>
               </li>
