@@ -9,15 +9,6 @@ import { resolveChecklistItems, countByStatus } from "@/lib/checklist";
 import type { ValidationReport, ValidationSummary } from "@/lib/types";
 
 type Props = { report: ValidationReport };
-
-/**
- * Layout: full-width verdict strip on top, then a two-pane grid (lg+) — sticky
- * SubmissionChecklist on the left, scrolling CategoryToc + per-category cards
- * + cover letter on the right. Collapses to a single stacked column below lg.
- *
- * Verdict counts are recomputed from the same items the SubmissionChecklist
- * renders (see lib/checklist) so the banner and the list can't disagree.
- */
 export default function ReportView({ report }: Props) {
   const categories = report.categories ?? [];
 

@@ -1,12 +1,5 @@
 import type { ValidationReport, SubmissionChecklistItem } from "./types";
 
-/**
- * Resolve the list of submission requirements + statuses for a report. Prefers
- * the agent-produced `submission_checklist[]` field; falls back to deriving
- * one from `categories[].items[]` for older reports that pre-date the
- * checklist extension. Single source of truth for both VerdictBanner counts
- * and the SubmissionChecklist component, so they can't disagree.
- */
 export function resolveChecklistItems(
   report: ValidationReport,
 ): SubmissionChecklistItem[] {

@@ -1,7 +1,4 @@
-// Types mirror what the sidecar's /journals endpoint and the n8n validate
-// webhook return. Loose — the n8n agent's ValidationReport is shaped by an
-// LLM, so we don't enforce a strict schema here; we just have enough types
-// to drive the UI without `any`.
+
 
 export type Journal = {
   journal_id: string;

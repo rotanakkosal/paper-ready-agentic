@@ -1,7 +1,3 @@
-// LocalStorage-backed history of past validations. The list lives client-side
-// only — no backend, no sync between devices, no leakage to the server.
-// Cleared by clearing the browser's site data.
-
 import type { ValidationReport } from "./types";
 
 export type HistoryEntry = {

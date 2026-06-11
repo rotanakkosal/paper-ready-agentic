@@ -1,6 +1,4 @@
-// Real captured output from n8n execution #85 (ViT manuscript on TPAMI,
-// 2026-05-27). Used by the page when ?demo=1 is in the URL so we can
-// validate the UI rendering without burning Gemini API quota.
+
 
 import type { ValidationReport } from "./types";
 
